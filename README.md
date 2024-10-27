@@ -19,3 +19,34 @@
     Priority Fee Adjustments: Adjusts the priority fee based on network congestion.
 
     Transaction Payments with PYUSD: Allows users to pay gas fees using PayPal USD (PYUSD).
+
+### Directory Structure
+
+```
+gas-saver-x/
+├── src/
+│   ├── config/
+│   │   ├── abi.json                 # contract ABI
+│   │   └── contractAddress.jsx      # contract address
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Navbar.jsx          # Navigation and wallet connection
+│   │   │   └── Layout.jsx          # Main layout wrapper
+│   │   ├── gas/
+│   │   │   ├── GasMetrics.jsx      # Gas price statistics
+│   │   │   ├── OptimizeGas.jsx     # Gas optimization interface
+│   │   │   └── PriceFeeds.jsx      # Price feed display
+│   │   └── transaction/
+│   │       ├── TransactionForm.jsx  # Transaction execution form
+│   │       └── TransactionHistory.jsx # Past transactions
+│   ├── hooks/
+│   │   ├── useEthereum.js          # Ethereum connection logic
+│   │   └── useGasSaver.js          # Contract interaction logic
+│   ├── context/
+│   │   └── EthereumContext.jsx     # Ethereum state management
+│   ├── utils/
+│   │   └── helpers.js              # Utility functions
+│   ├── App.jsx
+│   └── index.js
+└── package.json
+```
