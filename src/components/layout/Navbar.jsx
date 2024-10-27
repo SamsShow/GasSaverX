@@ -3,7 +3,22 @@ import { useEthereum } from '../../context/EthereumContext';
 import { shortenAddress } from '../../utils/helpers';
 
 export default function Navbar() {
-  const { account, connectWallet, disconnectWallet, isConnecting, error } = useEthereum();
+  const { 
+    account, 
+    connectWallet, 
+    disconnectWallet, 
+    isConnecting, 
+    error,
+    isInitialized 
+  } = useEthereum();
+
+  const handleConnect = async () => {
+    try {
+      await connectWallet();
+    } catch (err) {
+      console.error('Error in handleConnect:', err);
+    }
+  };
 
   return (
     <nav className="bg-gray-800 text-white p-4">
@@ -31,14 +46,19 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={connectWallet}
-              disabled={isConnecting}
+              onClick={handleConnect}
+              disabled={isConnecting || !isInitialized}
               className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
             >
               {isConnecting ? (
                 <>
                   <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
                   <span>Connecting...</span>
+                </>
+              ) : !isInitialized ? (
+                <>
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  <span>Initializing...</span>
                 </>
               ) : (
                 'Connect Wallet'

@@ -10,37 +10,44 @@ export function EthereumProvider({ children }) {
   const [signer, setSigner] = useState(null);
   const [error, setError] = useState(null);
   const [transactions, setTransactions] = useState([]);
-
-  // Calculate isConnected based on account existence
-  const isConnected = Boolean(account);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize provider on mount
   useEffect(() => {
     const initializeProvider = async () => {
       if (typeof window.ethereum !== 'undefined') {
         try {
-          const provider = new ethers.BrowserProvider(window.ethereum);
-          setProvider(provider);
+          const newProvider = new ethers.BrowserProvider(window.ethereum);
+          setProvider(newProvider);
+          setIsInitialized(true);
 
           // Check if already connected
           const accounts = await window.ethereum.request({ method: 'eth_accounts' });
           if (accounts.length > 0) {
-            const signer = await provider.getSigner();
-            setAccount(accounts[0]);
-            setSigner(signer);
-            await getTransactionHistory();
+            try {
+              const newSigner = await newProvider.getSigner();
+              setAccount(accounts[0]);
+              setSigner(newSigner);
+              await getTransactionHistory(newProvider, accounts[0]);
+            } catch (signerError) {
+              console.error('Error getting signer:', signerError);
+            }
           }
 
           // Setup event listeners
-          window.ethereum.on('accountsChanged', handleAccountsChanged);
+          window.ethereum.on('accountsChanged', (accounts) => 
+            handleAccountsChanged(accounts, newProvider)
+          );
           window.ethereum.on('chainChanged', () => window.location.reload());
           
         } catch (err) {
           console.error('Error initializing provider:', err);
           setError('Failed to initialize provider');
+          setIsInitialized(true); // Still set initialized to true so we can show proper error states
         }
       } else {
         setError('Please install MetaMask!');
+        setIsInitialized(true);
       }
     };
 
@@ -54,38 +61,35 @@ export function EthereumProvider({ children }) {
     };
   }, []);
 
-  // Get transaction history
-  const getTransactionHistory = async () => {
-    if (!provider || !account) {
+  const getTransactionHistory = async (currentProvider, currentAccount) => {
+    if (!currentProvider || !currentAccount) {
       return [];
     }
 
     try {
-      // Get the last 100 blocks
-      const currentBlock = await provider.getBlockNumber();
+      const currentBlock = await currentProvider.getBlockNumber();
       const transactions = [];
 
-      // Fetch transactions for the current account
       for (let i = 0; i < 100; i++) {
-        const block = await provider.getBlock(currentBlock - i, true);
+        const block = await currentProvider.getBlock(currentBlock - i, true);
         if (!block) continue;
 
         const relevantTxs = block.transactions.filter(tx => 
-          tx.from?.toLowerCase() === account.toLowerCase() ||
-          tx.to?.toLowerCase() === account.toLowerCase()
+          tx.from?.toLowerCase() === currentAccount.toLowerCase() ||
+          tx.to?.toLowerCase() === currentAccount.toLowerCase()
         );
 
         for (const tx of relevantTxs) {
-          const receipt = await provider.getTransactionReceipt(tx.hash);
+          const receipt = await currentProvider.getTransactionReceipt(tx.hash);
           
           transactions.push({
             hash: tx.hash,
             from: tx.from,
             to: tx.to,
             value: tx.value.toString(),
-            gasSaved: '0', // This would need to be calculated based on your gas saving logic
+            gasSaved: '0',
             status: receipt?.status === 1 ? 'success' : receipt?.status === 0 ? 'failed' : 'pending',
-            timestamp: (await provider.getBlock(tx.blockNumber)).timestamp * 1000
+            timestamp: (await currentProvider.getBlock(tx.blockNumber)).timestamp * 1000
           });
         }
       }
@@ -98,20 +102,22 @@ export function EthereumProvider({ children }) {
     }
   };
 
-  // Handle account changes
-  const handleAccountsChanged = async (accounts) => {
+  const handleAccountsChanged = async (accounts, currentProvider) => {
     if (accounts.length === 0) {
-      // Disconnected
       setAccount(null);
       setSigner(null);
       setTransactions([]);
     } else if (accounts[0] !== account) {
-      // Account changed
+      if (!currentProvider) {
+        console.error('Provider not initialized');
+        return;
+      }
+
       try {
-        const signer = await provider.getSigner();
+        const newSigner = await currentProvider.getSigner();
         setAccount(accounts[0]);
-        setSigner(signer);
-        await getTransactionHistory();
+        setSigner(newSigner);
+        await getTransactionHistory(currentProvider, accounts[0]);
       } catch (err) {
         console.error('Error updating signer:', err);
         setError('Failed to update account');
@@ -119,25 +125,26 @@ export function EthereumProvider({ children }) {
     }
   };
 
-  // Other existing functions remain the same...
-  const checkConnection = async (provider) => {
-    try {
-      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-      if (accounts.length > 0) {
-        setAccount(accounts[0]);
-        const signer = await provider.getSigner();
-        setSigner(signer);
-        await getTransactionHistory();
-      }
-    } catch (err) {
-      console.error('Error checking connection:', err);
-    }
-  };
-
   const connectWallet = async () => {
     if (!window.ethereum) {
       setError('Please install MetaMask!');
       return;
+    }
+
+    if (!isInitialized) {
+      setError('Provider initialization in progress. Please wait...');
+      return;
+    }
+
+    if (!provider) {
+      try {
+        // Attempt to reinitialize provider
+        const newProvider = new ethers.BrowserProvider(window.ethereum);
+        setProvider(newProvider);
+      } catch (err) {
+        setError('Failed to initialize provider. Please refresh the page.');
+        return;
+      }
     }
 
     setIsConnecting(true);
@@ -149,10 +156,16 @@ export function EthereumProvider({ children }) {
       });
 
       if (accounts.length > 0) {
-        const signer = await provider.getSigner();
-        setAccount(accounts[0]);
-        setSigner(signer);
-        await getTransactionHistory();
+        try {
+          const newSigner = await provider.getSigner();
+          setAccount(accounts[0]);
+          setSigner(newSigner);
+          await getTransactionHistory(provider, accounts[0]);
+        } catch (signerError) {
+          console.error('Error getting signer:', signerError);
+          setError('Failed to get signer. Please try again.');
+          setAccount(null);
+        }
       }
     } catch (err) {
       console.error('Error connecting wallet:', err);
@@ -176,9 +189,10 @@ export function EthereumProvider({ children }) {
     signer,
     error,
     transactions,
+    isInitialized,
     connectWallet,
     disconnectWallet,
-    getTransactionHistory
+    getTransactionHistory: () => getTransactionHistory(provider, account)
   };
 
   return (
@@ -187,7 +201,6 @@ export function EthereumProvider({ children }) {
     </EthereumContext.Provider>
   );
 }
-
 
 export function useEthereum() {
   const context = useContext(EthereumContext);
