@@ -35,12 +35,30 @@ const PriceFeeds = () => {
       const feeData = await provider.getFeeData();
       const currentGasPrice = Number(feeData.gasPrice) / 1e9; // Convert to Gwei
       
-      // Calculate max priority fee
-      const maxPriorityFee = Number(feeData.maxPriorityFeePerGas) / 1e9;
+      let maxPriorityFee = 0;
+      try {
+        // Try to get max priority fee, but don't fail if it's not available
+        maxPriorityFee = Number(feeData.maxPriorityFeePerGas) / 1e9;
+      } catch (priorityFeeError) {
+        console.warn('Max priority fee not available:', priorityFeeError);
+        // Estimate priority fee as 10% of current gas price if not available
+        maxPriorityFee = currentGasPrice * 0.1;
+      }
 
       // Get block information for more stats
       const block = await provider.getBlock('latest');
-      const baseGasPrice = Number(block.baseFeePerGas) / 1e9;
+      let baseGasPrice = currentGasPrice;
+      
+      try {
+        // Try to get base fee, but don't fail if it's not available
+        if (block && block.baseFeePerGas) {
+          baseGasPrice = Number(block.baseFeePerGas) / 1e9;
+        }
+      } catch (baseFeeError) {
+        console.warn('Base fee not available:', baseFeeError);
+        // Estimate base fee as 90% of current gas price if not available
+        baseGasPrice = currentGasPrice * 0.9;
+      }
 
       const formattedStats = {
         currentPrice: currentGasPrice,

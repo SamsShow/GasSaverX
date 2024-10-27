@@ -1,47 +1,127 @@
 import React, { useState, useEffect } from 'react';
-import { formatAddress, formatTimestamp, formatEther } from '../../utils/helpers';
+import { ethers } from 'ethers';
 import { ArrowUpRight, ExternalLink, Filter } from 'lucide-react';
 import { useEthereum } from '../../context/EthereumContext';
+import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';
+
+// Format helpers
+const formatAddress = (address) => {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
+
+const formatTimestamp = (timestamp) => {
+  return new Date(timestamp).toLocaleString();
+};
+
+const formatEther = (value) => {
+  if (!value) return '0';
+  return parseFloat(ethers.formatEther(value)).toFixed(4);
+};
 
 const TransactionHistory = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
-  const { getTransactionHistory } = useEthereum();
-  
+  const { account, provider, isConnected } = useEthereum();
+
   useEffect(() => {
     const fetchTransactions = async () => {
+      if (!isConnected || !provider || !account) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        const history = await getTransactionHistory();
-        setTransactions(history);
-      } catch (error) {
-        console.error('Failed to fetch transaction history:', error);
+        setLoading(true);
+        setError(null);
+
+        // Get the last 100 blocks
+        const currentBlock = await provider.getBlockNumber();
+        const txs = [];
+
+        for (let i = 0; i < 100; i++) {
+          const block = await provider.getBlock(currentBlock - i, true);
+          if (!block) continue;
+
+          const relevantTxs = block.transactions.filter(tx => 
+            tx.from?.toLowerCase() === account.toLowerCase() ||
+            tx.to?.toLowerCase() === account.toLowerCase()
+          );
+
+          for (const tx of relevantTxs) {
+            const receipt = await provider.getTransactionReceipt(tx.hash);
+            
+            txs.push({
+              hash: tx.hash,
+              from: tx.from,
+              to: tx.to,
+              value: tx.value.toString(),
+              gasSaved: receipt?.gasUsed?.toString() || '0',
+              status: receipt?.status === 1 ? 'success' : receipt?.status === 0 ? 'failed' : 'pending',
+              timestamp: block.timestamp * 1000
+            });
+          }
+        }
+
+        setTransactions(txs);
+      } catch (err) {
+        console.error('Error fetching transactions:', err);
+        setError('Failed to load transaction history');
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchTransactions();
-  }, [getTransactionHistory]);
-  
+  }, [provider, account, isConnected]);
+
   const filteredTransactions = transactions.filter(tx => {
     if (filter === 'all') return true;
     return tx.status === filter;
   });
-  
-  if (loading) {
+
+  if (!isConnected) {
     return (
-      <div className="w-full p-6 flex justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardContent className="p-6">
+          <div className="text-center py-8 text-gray-500">
+            Please connect your wallet to view transaction history
+          </div>
+        </CardContent>
+      </Card>
     );
   }
-  
+
+  if (loading) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardContent className="p-6">
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto">
+        <CardContent className="p-6">
+          <div className="text-center py-8 text-red-500">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="w-full max-w-4xl mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Transaction History</h2>
-        
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle className="text-2xl font-bold">Transaction History</CardTitle>
         <div className="flex items-center space-x-2">
           <Filter className="h-4 w-4" />
           <select
@@ -55,14 +135,13 @@ const TransactionHistory = () => {
             <option value="pending">Pending</option>
           </select>
         </div>
-      </div>
-      
-      {filteredTransactions.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          No transactions found
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+      </CardHeader>
+      <CardContent>
+        {filteredTransactions.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No transactions found
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -77,7 +156,7 @@ const TransactionHistory = () => {
                     Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Gas Saved
+                    Gas Used
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -121,8 +200,8 @@ const TransactionHistory = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-green-600">
-                        {tx.gasSaved} gwei
+                      <span className="text-sm text-gray-900">
+                        {ethers.formatUnits(tx.gasSaved, 'gwei')} gwei
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -142,9 +221,9 @@ const TransactionHistory = () => {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

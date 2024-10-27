@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useEthereum } from '../../hooks/useEthereum';
-import { useGasSaver } from '../../hooks/useGasSaver';
+import { ethers } from 'ethers';
+import { useEthereum } from '../../context/EthereumContext';
 import { AlertCircle, Loader, Check } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
 
@@ -15,38 +15,76 @@ const TransactionForm = () => {
   const [error, setError] = useState('');
   const [gasEstimate, setGasEstimate] = useState(null);
   
-  const { account, isConnected } = useEthereum();
-  const { estimateGasCost, executeTransaction } = useGasSaver();
+  const { 
+    account, 
+    provider, 
+    signer, 
+    connectWallet 
+  } = useEthereum();
   
+  // Compute isConnected based on account existence
+  const isConnected = Boolean(account);
+  
+  // Check wallet connection on mount
+  useEffect(() => {
+    const checkWallet = async () => {
+      if (typeof window.ethereum !== 'undefined' && !isConnected) {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (accounts.length > 0 && !account) {
+          await connectWallet();
+        }
+      }
+    };
+
+    checkWallet();
+  }, []);
+
+  const validateTransaction = (recipient, amount) => {
+    if (!recipient || !amount) {
+      throw new Error('Please fill in all required fields');
+    }
+
+    try {
+      if (!ethers.isAddress(recipient)) {
+        throw new Error('Invalid recipient address');
+      }
+
+      // Validate amount is a valid number
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw new Error('Invalid amount');
+      }
+
+      return true;
+    } catch (err) {
+      throw new Error(err.message);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+
+    // Clear any previous errors when user makes changes
+    setError('');
   };
-  
-  useEffect(() => {
-    const estimateGas = async () => {
-      if (formData.recipient && formData.amount) {
-        try {
-          const estimate = await estimateGasCost(formData);
-          setGasEstimate(estimate);
-          setError('');
-        } catch (err) {
-          setError('Failed to estimate gas cost');
-          setGasEstimate(null);
-        }
-      }
-    };
-    
-    estimateGas();
-  }, [formData.recipient, formData.amount]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isConnected) {
-      setError('Please connect your wallet first');
+      try {
+        await connectWallet();
+      } catch (err) {
+        setError('Please connect your wallet first');
+        return;
+      }
+    }
+    
+    if (!signer || !provider) {
+      setError('Wallet connection not initialized properly');
       return;
     }
     
@@ -54,23 +92,82 @@ const TransactionForm = () => {
     setError('');
     
     try {
-      await executeTransaction(formData);
+      // Validate transaction data
+      validateTransaction(formData.recipient, formData.amount);
+
+      const transaction = {
+        to: formData.recipient,
+        value: ethers.parseEther(formData.amount.toString())
+      };
+
+      if (formData.data) {
+        // Ensure data is properly formatted as hex
+        transaction.data = formData.data.startsWith('0x') 
+          ? formData.data 
+          : `0x${formData.data}`;
+      }
+
+      // Get gas estimate before sending transaction
+      try {
+        const estimate = await provider.estimateGas(transaction);
+        setGasEstimate(estimate);
+      } catch (gasErr) {
+        throw new Error('Failed to estimate gas. The transaction may fail.');
+      }
+
+      const tx = await signer.sendTransaction(transaction);
+      await tx.wait();
+
+      // Clear form after successful transaction
       setFormData({
         recipient: '',
         amount: '',
         data: '',
         paymentMethod: 'ETH'
       });
+      
     } catch (err) {
+      console.error('Transaction error:', err);
       setError(err.message || 'Transaction failed');
     } finally {
       setLoading(false);
     }
   };
   
+  // Connection status alert
+  const renderConnectionStatus = () => {
+    if (!window.ethereum) {
+      return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>MetaMask Required</AlertTitle>
+          <AlertDescription>
+            Please install MetaMask to use this application
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
+    if (!isConnected) {
+      return (
+        <Alert variant="warning">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Wallet Not Connected</AlertTitle>
+          <AlertDescription>
+            Please connect your wallet to continue
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
+    return null;
+  };
+  
   return (
     <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6">New Transaction</h2>
+      
+      {renderConnectionStatus()}
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -82,6 +179,7 @@ const TransactionForm = () => {
             onChange={handleInputChange}
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
             placeholder="0x..."
+            disabled={!isConnected}
             required
           />
         </div>
@@ -96,6 +194,8 @@ const TransactionForm = () => {
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
             placeholder="0.0"
             step="0.000000000000000001"
+            min="0"
+            disabled={!isConnected}
             required
           />
         </div>
@@ -109,30 +209,14 @@ const TransactionForm = () => {
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
             placeholder="0x..."
             rows="3"
+            disabled={!isConnected}
           />
         </div>
         
-        <div>
-          <label className="block text-sm font-medium mb-1">Payment Method</label>
-          <select
-            name="paymentMethod"
-            value={formData.paymentMethod}
-            onChange={handleInputChange}
-            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="ETH">ETH</option>
-            <option value="PYUSD">PYUSD</option>
-          </select>
-        </div>
-        
         {gasEstimate && (
-          <Alert className="bg-blue-50 border-blue-200">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Estimated Gas Cost</AlertTitle>
-            <AlertDescription>
-              {gasEstimate.eth} ETH (${gasEstimate.usd})
-            </AlertDescription>
-          </Alert>
+          <div className="text-sm text-gray-600">
+            Estimated Gas: {gasEstimate.toString()} units
+          </div>
         )}
         
         {error && (
