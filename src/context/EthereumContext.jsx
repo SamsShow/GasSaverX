@@ -9,6 +9,7 @@ export function EthereumProvider({ children }) {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [error, setError] = useState(null);
+  const [transactions, setTransactions] = useState([]);
 
   // Initialize provider on mount
   useEffect(() => {
@@ -35,23 +36,70 @@ export function EthereumProvider({ children }) {
     };
   }, []);
 
+  // Get transaction history
+  const getTransactionHistory = async () => {
+    if (!provider || !account) {
+      return [];
+    }
+
+    try {
+      // Get the last 100 blocks
+      const currentBlock = await provider.getBlockNumber();
+      const transactions = [];
+
+      // Fetch transactions for the current account
+      for (let i = 0; i < 100; i++) {
+        const block = await provider.getBlock(currentBlock - i, true);
+        if (!block) continue;
+
+        const relevantTxs = block.transactions.filter(tx => 
+          tx.from?.toLowerCase() === account.toLowerCase() ||
+          tx.to?.toLowerCase() === account.toLowerCase()
+        );
+
+        for (const tx of relevantTxs) {
+          const receipt = await provider.getTransactionReceipt(tx.hash);
+          
+          transactions.push({
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to,
+            value: tx.value.toString(),
+            gasSaved: '0', // This would need to be calculated based on your gas saving logic
+            status: receipt?.status === 1 ? 'success' : receipt?.status === 0 ? 'failed' : 'pending',
+            timestamp: (await provider.getBlock(tx.blockNumber)).timestamp * 1000
+          });
+        }
+      }
+
+      setTransactions(transactions);
+      return transactions;
+    } catch (err) {
+      console.error('Error fetching transaction history:', err);
+      throw err;
+    }
+  };
+
   // Handle account changes
   const handleAccountsChanged = async (accounts) => {
     if (accounts.length === 0) {
       // Disconnected
       setAccount(null);
       setSigner(null);
+      setTransactions([]);
     } else if (accounts[0] !== account) {
       // Account changed
       setAccount(accounts[0]);
       if (provider) {
         const signer = await provider.getSigner();
         setSigner(signer);
+        // Fetch new account's transactions
+        await getTransactionHistory();
       }
     }
   };
 
-  // Check existing connection
+  // Other existing functions remain the same...
   const checkConnection = async (provider) => {
     try {
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
@@ -59,13 +107,13 @@ export function EthereumProvider({ children }) {
         setAccount(accounts[0]);
         const signer = await provider.getSigner();
         setSigner(signer);
+        await getTransactionHistory();
       }
     } catch (err) {
       console.error('Error checking connection:', err);
     }
   };
 
-  // Connect wallet
   const connectWallet = async () => {
     if (!window.ethereum) {
       setError('Please install MetaMask!');
@@ -76,17 +124,14 @@ export function EthereumProvider({ children }) {
     setError(null);
 
     try {
-      // Request account access
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts'
       });
 
-      // Get provider and signer
       const signer = await provider.getSigner();
-      
-      // Set state
       setAccount(accounts[0]);
       setSigner(signer);
+      await getTransactionHistory();
     } catch (err) {
       console.error('Error connecting wallet:', err);
       setError(err.message || 'Failed to connect wallet');
@@ -95,10 +140,10 @@ export function EthereumProvider({ children }) {
     }
   };
 
-  // Disconnect wallet
   const disconnectWallet = () => {
     setAccount(null);
     setSigner(null);
+    setTransactions([]);
   };
 
   const value = {
@@ -107,8 +152,10 @@ export function EthereumProvider({ children }) {
     provider,
     signer,
     error,
+    transactions,
     connectWallet,
-    disconnectWallet
+    disconnectWallet,
+    getTransactionHistory
   };
 
   return (

@@ -39,6 +39,8 @@ export const useEthereum = () => {
     }
   }, []);
 
+  
+
   // Connect wallet
   const connectWallet = async () => {
     if (!provider) {

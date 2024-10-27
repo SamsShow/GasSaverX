@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useGasSaver } from '../../hooks/useGasSaver';
 import { formatAddress, formatTimestamp, formatEther } from '../../utils/helpers';
 import { ArrowUpRight, ExternalLink, Filter } from 'lucide-react';
+import { useEthereum } from '../../context/EthereumContext';
 
 const TransactionHistory = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const { getTransactionHistory } = useGasSaver();
+  const { getTransactionHistory } = useEthereum();
   
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -22,7 +22,7 @@ const TransactionHistory = () => {
     };
     
     fetchTransactions();
-  }, []);
+  }, [getTransactionHistory]);
   
   const filteredTransactions = transactions.filter(tx => {
     if (filter === 'all') return true;
