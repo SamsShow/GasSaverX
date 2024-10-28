@@ -1,67 +1,155 @@
 // src/services/quickNodeService.js
 import { ethers } from 'ethers';
 
-export class QuickNodeService {
-  constructor(quickNodeEndpoint, quickNodeFunctionEndpoint) {
-    this.wsProvider = new ethers.WebSocketProvider(quickNodeEndpoint);
-    this.functionEndpoint = quickNodeFunctionEndpoint;
+class QuickNodeService {
+  constructor() {
+    this.wsProvider = new ethers.WebSocketProvider(
+      import.meta.env.VITE_QUICKNODE_WSS_ENDPOINT
+    );
+    this.httpProvider = new ethers.JsonRpcProvider(
+      import.meta.env.VITE_QUICKNODE_RPC_URL
+    );
+    
+    // Network-specific gas thresholds (in Gwei)
+    this.thresholds = {
+      ethereum: {
+        low: 20,
+        medium: 40,
+        high: 60
+      },
+      polygon: {
+        low: 50,
+        medium: 100,
+        high: 200
+      },
+      arbitrum: {
+        low: 0.1,
+        medium: 0.3,
+        high: 0.5
+      }
+    };
   }
 
-  // Initialize stream subscription
-  async subscribeToTransactions(callback) {
+  async analyzeTransaction(transactionData, network = 'ethereum') {
     try {
-      // Subscribe to pending transactions
-      this.wsProvider.on('pending', async (txHash) => {
-        const tx = await this.wsProvider.getTransaction(txHash);
-        if (tx) {
-          // Process transaction data
-          const txData = {
-            hash: tx.hash,
-            from: tx.from,
-            to: tx.to,
-            value: tx.value.toString(),
-            gasPrice: tx.gasPrice.toString(),
-            gasLimit: tx.gasLimit.toString(),
-            timestamp: Date.now(),
-          };
-          
-          // Get optimization suggestions from QuickNode Function
-          const optimization = await this.getOptimizationSuggestions(txData);
-          callback({ transaction: txData, optimization });
-        }
-      });
-      
-      return true;
+      // Get current network conditions
+      const [baseFeePerGas, maxPriorityFeePerGas] = await Promise.all([
+        this.httpProvider.send('eth_getBlockByNumber', ['latest', false])
+          .then(block => parseInt(block.baseFeePerGas, 16) / 1e9),
+        this.httpProvider.send('eth_maxPriorityFeePerGas', [])
+          .then(fee => parseInt(fee, 16) / 1e9)
+      ]);
+
+      const gasPrice = parseInt(transactionData.gasPrice) / 1e9;
+      const gasLimit = parseInt(transactionData.gasLimit);
+      const currentThresholds = this.thresholds[network] || this.thresholds.ethereum;
+
+      // Analysis structure
+      const analysis = {
+        timestamp: Date.now(),
+        network,
+        transaction: transactionData,
+        gasAnalysis: {
+          currentGasPrice: gasPrice,
+          baseFeePerGas,
+          maxPriorityFeePerGas,
+          priceLevel: gasPrice <= currentThresholds.low ? 'low' :
+                      gasPrice <= currentThresholds.medium ? 'medium' : 'high',
+          estimatedCost: (gasPrice * gasLimit) / 1e9
+        },
+        suggestions: []
+      };
+
+      // Generate optimization suggestions
+      if (gasPrice > currentThresholds.high) {
+        analysis.suggestions.push({
+          type: 'delay',
+          message: 'Gas prices are high. Consider delaying non-urgent transactions.',
+          severity: 'high'
+        });
+      }
+
+      // Check if EIP-1559 optimization is possible
+      const potentialBaseFee = Math.min(baseFeePerGas * 1.125, baseFeePerGas + 2);
+      const potentialPriorityFee = Math.min(maxPriorityFeePerGas * 0.9, maxPriorityFeePerGas);
+      const potentialTotalFee = potentialBaseFee + potentialPriorityFee;
+
+      if (gasPrice > potentialTotalFee) {
+        analysis.suggestions.push({
+          type: 'eip1559',
+          message: `Consider using EIP-1559 with base fee of ${potentialBaseFee.toFixed(2)} Gwei and priority fee of ${potentialPriorityFee.toFixed(2)} Gwei`,
+          severity: 'medium'
+        });
+      }
+
+      // Calculate potential savings
+      if (analysis.suggestions.length > 0) {
+        const potentialGasPrice = Math.min(gasPrice, potentialTotalFee);
+        analysis.gasAnalysis.potentialSavings = {
+          gwei: gasPrice - potentialGasPrice,
+          eth: ((gasPrice - potentialGasPrice) * gasLimit) / 1e9
+        };
+      }
+
+      // Add historical context
+      const historicalAnalysis = await this.getHistoricalGasAnalysis();
+      analysis.gasAnalysis.historical = historicalAnalysis;
+
+      return analysis;
     } catch (error) {
-      console.error('Error subscribing to transactions:', error);
-      throw error;
+      console.error('Analysis Error:', error);
+      throw new Error('Failed to analyze transaction');
     }
   }
 
-  // Call QuickNode Function for optimization suggestions
-  async getOptimizationSuggestions(txData) {
+  async getHistoricalGasAnalysis() {
     try {
-      const response = await fetch(this.functionEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_QUICKNODE_API_KEY}`
-        },
-        body: JSON.stringify({
-          transaction: txData,
-          network: 'ethereum',
-          optimizationTarget: 'gas'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to get optimization suggestions');
+      // Get the last 10 blocks for historical analysis
+      const latestBlock = await this.httpProvider.getBlockNumber();
+      const blockPromises = [];
+      
+      for (let i = 0; i < 10; i++) {
+        blockPromises.push(
+          this.httpProvider.getBlock(latestBlock - i)
+        );
       }
 
-      return await response.json();
+      const blocks = await Promise.all(blockPromises);
+      
+      // Calculate average gas prices from historical blocks
+      const gasStats = blocks.reduce((stats, block) => {
+        if (block.baseFeePerGas) {
+          const baseFee = Number(block.baseFeePerGas) / 1e9;
+          stats.sum += baseFee;
+          stats.min = Math.min(stats.min, baseFee);
+          stats.max = Math.max(stats.max, baseFee);
+        }
+        return stats;
+      }, { sum: 0, min: Infinity, max: -Infinity });
+
+      return {
+        avgBaseFee: gasStats.sum / blocks.length,
+        minBaseFee: gasStats.min,
+        maxBaseFee: gasStats.max,
+        timeWindow: '10 blocks'
+      };
     } catch (error) {
-      console.error('Error getting optimization suggestions:', error);
+      console.error('Historical Analysis Error:', error);
       return null;
     }
   }
+
+  async batchAnalyze(transactions, network = 'ethereum') {
+    try {
+      const analysisPromises = transactions.map(tx => 
+        this.analyzeTransaction(tx, network)
+      );
+      return await Promise.all(analysisPromises);
+    } catch (error) {
+      console.error('Batch Analysis Error:', error);
+      throw new Error('Failed to analyze transactions batch');
+    }
+  }
 }
+
+export const quickNodeService = new QuickNodeService();
