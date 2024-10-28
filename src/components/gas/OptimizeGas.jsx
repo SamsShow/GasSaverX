@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowDownCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
 import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';
+import RealTimeAnalysis from '../gas/RealTimeAnalysis';
 
 const OptimizeGas = () => {
   const [currentGasPrice, setCurrentGasPrice] = useState(null);
@@ -210,11 +211,13 @@ const OptimizeGas = () => {
   };
 
   return (
+    
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>Gas & Route Optimization</CardTitle>
       </CardHeader>
       <CardContent>
+        <RealTimeAnalysis />
         <div className="mb-4 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold mb-2">Network Status</h3>
           <div className="text-sm space-y-1">
