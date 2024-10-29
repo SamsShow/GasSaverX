@@ -1,5 +1,6 @@
 import React from 'react';
 import { ToastContainer } from 'react-toastify';
+import { ToastProvider } from './components/elements/ToastAction';
 import 'react-toastify/dist/ReactToastify.css';
 import { EthereumProvider } from './context/EthereumContext';
 import Layout from './components/layout/layout';
@@ -7,12 +8,14 @@ import Navbar from './components/layout/Navbar';
 import GasMetrics from './components/gas/GasMetrics';
 import OptimizeGas from './components/gas/OptimizeGas';
 import PriceFeeds from './components/gas/PriceFeeds';
+import GasOptimizationDashboard from './components/gas/GasOptimizationDashboard ';
 import TransactionForm from './components/transaction/TransactionForm';
 import TransactionHistory from './components/transaction/TransactionHistory';
 
 const App = () => {
   return (
     <EthereumProvider>
+      <ToastProvider>
       <div className="min-h-screen bg-gray-100">
         <Navbar />
         <Layout>
@@ -37,10 +40,18 @@ const App = () => {
                   </h2>
                   <OptimizeGas />
                 </div>
+
+                
               </div>
 
               {/* Right Column */}
               <div className="space-y-6">
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                    Gas Optimization Dashboard
+                  </h2>
+                  <GasOptimizationDashboard />
+                </div>
                 <div className="bg-white rounded-lg shadow-md p-6">
                   <h2 className="text-2xl font-bold text-gray-800 mb-4">
                     Execute Transaction
@@ -110,6 +121,7 @@ const App = () => {
           theme="light"
         />
       </div>
+      </ToastProvider>
     </EthereumProvider>
   );
 };
