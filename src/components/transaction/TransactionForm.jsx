@@ -1,58 +1,92 @@
-import React, { useState, useEffect } from 'react';
-import { ethers } from 'ethers';
-import { useEthereum } from '../../context/EthereumContext';
-import { AlertCircle, Loader, Check } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
+import React, { useState, useEffect } from "react";
+import { ethers } from "ethers";
+import { useEthereum } from "../../context/EthereumContext";
+import { AlertCircle, Loader, Check, Timer } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "../elements/Alert";
 
-const TransactionForm = () => {
+const TransactionForm = ({ optimizedGasPrice }) => {
   const [formData, setFormData] = useState({
-    recipient: '',
-    amount: '',
-    data: '',
-    paymentMethod: 'ETH'
+    recipient: "",
+    amount: "",
+    data: "",
+    paymentMethod: "ETH",
+    useOptimizedGas: false,
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [gasEstimate, setGasEstimate] = useState(null);
-  
-  const { 
-    account, 
-    provider, 
-    signer, 
-    connectWallet 
-  } = useEthereum();
-  
-  // Compute isConnected based on account existence
+  const [customGasSettings, setCustomGasSettings] = useState({
+    maxFeePerGas: null,
+    maxPriorityFeePerGas: null,
+  });
+
+  const { account, provider, signer, connectWallet } = useEthereum();
   const isConnected = Boolean(account);
-  
-  // Check wallet connection on mount
+
+  // Update gas settings when optimized price is received
   useEffect(() => {
-    const checkWallet = async () => {
-      if (typeof window.ethereum !== 'undefined' && !isConnected) {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        if (accounts.length > 0 && !account) {
-          await connectWallet();
+    if (optimizedGasPrice) {
+      try {
+        // Round to 9 decimal places and remove any excess trailing zeros
+        const roundedGasPrice = Number(parseFloat(optimizedGasPrice).toFixed(9));
+        
+        // Convert the rounded number to a string with fixed precision
+        const gweiString = roundedGasPrice.toString();
+        
+        try {
+          const weiValue = ethers.parseUnits(gweiString, "gwei");
+          setCustomGasSettings({
+            maxFeePerGas: weiValue,
+            maxPriorityFeePerGas: ethers.parseUnits("1.5", "gwei"),
+          });
+        } catch (parseError) {
+          console.warn("Failed to parse gas price, falling back to default:", parseError);
+          // Fallback to a safe default if parsing fails
+          setCustomGasSettings({
+            maxFeePerGas: ethers.parseUnits("50", "gwei"),
+            maxPriorityFeePerGas: ethers.parseUnits("1.5", "gwei"),
+          });
         }
+      } catch (err) {
+        console.error("Error setting gas price:", err);
+        setError("Invalid gas price received");
       }
-    };
+    }
+  }, [optimizedGasPrice]);
 
-    checkWallet();
-  }, []);
+  // Format gas price safely for display
+  const formatGasPrice = (price) => {
+    try {
+      if (!price) return "0";
+      
+      // Handle BigNumber or BigInt
+      if (typeof price === 'bigint' || price._isBigNumber) {
+        const formatted = ethers.formatUnits(price, "gwei");
+        return Number(formatted).toFixed(2);
+      }
+      
+      // Handle decimal number
+      return Number(price).toFixed(2);
+    } catch (err) {
+      console.error("Error formatting gas price:", err);
+      return "0";
+    }
+  };
 
+  // Rest of the component remains the same
   const validateTransaction = (recipient, amount) => {
     if (!recipient || !amount) {
-      throw new Error('Please fill in all required fields');
+      throw new Error("Please fill in all required fields");
     }
 
     try {
       if (!ethers.isAddress(recipient)) {
-        throw new Error('Invalid recipient address');
+        throw new Error("Invalid recipient address");
       }
 
-      // Validate amount is a valid number
       const parsedAmount = parseFloat(amount);
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        throw new Error('Invalid amount');
+        throw new Error("Invalid amount");
       }
 
       return true;
@@ -63,78 +97,84 @@ const TransactionForm = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
-
-    // Clear any previous errors when user makes changes
-    setError('');
+    setError("");
   };
-  
+
+  const handleGasSettingToggle = () => {
+    setFormData((prev) => ({
+      ...prev,
+      useOptimizedGas: !prev.useOptimizedGas,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isConnected) {
       try {
         await connectWallet();
       } catch (err) {
-        setError('Please connect your wallet first');
+        setError("Please connect your wallet first");
         return;
       }
     }
-    
+
     if (!signer || !provider) {
-      setError('Wallet connection not initialized properly');
+      setError("Wallet connection not initialized properly");
       return;
     }
-    
+
     setLoading(true);
-    setError('');
-    
+    setError("");
+
     try {
-      // Validate transaction data
       validateTransaction(formData.recipient, formData.amount);
 
       const transaction = {
         to: formData.recipient,
-        value: ethers.parseEther(formData.amount.toString())
+        value: ethers.parseEther(formData.amount.toString()),
       };
 
       if (formData.data) {
-        // Ensure data is properly formatted as hex
-        transaction.data = formData.data.startsWith('0x') 
-          ? formData.data 
+        transaction.data = formData.data.startsWith("0x")
+          ? formData.data
           : `0x${formData.data}`;
       }
 
-      // Get gas estimate before sending transaction
+      if (formData.useOptimizedGas && customGasSettings.maxFeePerGas) {
+        transaction.maxFeePerGas = customGasSettings.maxFeePerGas;
+        transaction.maxPriorityFeePerGas = customGasSettings.maxPriorityFeePerGas;
+        transaction.type = 2;
+      }
+
       try {
         const estimate = await provider.estimateGas(transaction);
         setGasEstimate(estimate);
       } catch (gasErr) {
-        throw new Error('Failed to estimate gas. The transaction may fail.');
+        throw new Error("Failed to estimate gas. The transaction may fail.");
       }
 
       const tx = await signer.sendTransaction(transaction);
       await tx.wait();
 
-      // Clear form after successful transaction
       setFormData({
-        recipient: '',
-        amount: '',
-        data: '',
-        paymentMethod: 'ETH'
+        recipient: "",
+        amount: "",
+        data: "",
+        paymentMethod: "ETH",
+        useOptimizedGas: false,
       });
-      
     } catch (err) {
-      console.error('Transaction error:', err);
-      setError(err.message || 'Transaction failed');
+      console.error("Transaction error:", err);
+      setError(err.message || "Transaction failed");
     } finally {
       setLoading(false);
     }
   };
-  
-  // Connection status alert
+
   const renderConnectionStatus = () => {
     if (!window.ethereum) {
       return (
@@ -147,7 +187,7 @@ const TransactionForm = () => {
         </Alert>
       );
     }
-    
+
     if (!isConnected) {
       return (
         <Alert variant="warning">
@@ -159,19 +199,21 @@ const TransactionForm = () => {
         </Alert>
       );
     }
-    
+
     return null;
   };
-  
+
   return (
     <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6">New Transaction</h2>
-      
+
       {renderConnectionStatus()}
-      
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Recipient Address</label>
+          <label className="block text-sm font-medium mb-1">
+            Recipient Address
+          </label>
           <input
             type="text"
             name="recipient"
@@ -183,7 +225,7 @@ const TransactionForm = () => {
             required
           />
         </div>
-        
+
         <div>
           <label className="block text-sm font-medium mb-1">Amount</label>
           <input
@@ -199,9 +241,11 @@ const TransactionForm = () => {
             required
           />
         </div>
-        
+
         <div>
-          <label className="block text-sm font-medium mb-1">Data (Optional)</label>
+          <label className="block text-sm font-medium mb-1">
+            Data (Optional)
+          </label>
           <textarea
             name="data"
             value={formData.data}
@@ -212,13 +256,36 @@ const TransactionForm = () => {
             disabled={!isConnected}
           />
         </div>
-        
+
+        {optimizedGasPrice && (
+          <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-md">
+            <Timer className="h-4 w-4 text-blue-500" />
+            <label className="flex items-center space-x-2 text-sm text-blue-700">
+              <input
+                type="checkbox"
+                checked={formData.useOptimizedGas}
+                onChange={handleGasSettingToggle}
+                className="rounded border-blue-500 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                Use optimized gas settings ({formatGasPrice(optimizedGasPrice)}{" "}
+                Gwei)
+              </span>
+            </label>
+          </div>
+        )}
+
         {gasEstimate && (
           <div className="text-sm text-gray-600">
             Estimated Gas: {gasEstimate.toString()} units
+            {formData.useOptimizedGas && customGasSettings.maxFeePerGas && (
+              <div className="text-blue-600">
+                Max Fee: {formatGasPrice(customGasSettings.maxFeePerGas)} Gwei
+              </div>
+            )}
           </div>
         )}
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -226,7 +293,7 @@ const TransactionForm = () => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
+
         <button
           type="submit"
           disabled={loading || !isConnected}

@@ -2,60 +2,77 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';
 import { useToast, ToastAction } from '../elements/ToastAction';
 import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
-import { Activity, TrendingDown, Clock, AlertCircle } from 'lucide-react';
+import { Activity, TrendingDown, Clock, AlertCircle, Timer } from 'lucide-react';
 import { useQuickNode } from '../../hooks/useQuickNode';
 
-const GasOptimizationDashboard = ({ optimizedGasPrice }) => {
+const GasOptimizationDashboard = ({ optimizedGasPrice, onOptimizedGasUpdate }) => {
     const [notifications, setNotifications] = useState([]);
     const [currentOptimization, setCurrentOptimization] = useState(null);
+    const [predictionData, setPredictionData] = useState(null);
     const { streamData, isConnected } = useQuickNode();
     const { toast } = useToast();
     const [lastToastTime, setLastToastTime] = useState(0);
   
+    // Simulate gas price prediction based on historical data
+    const predictGasPrices = (currentPrice) => {
+      // In a real implementation, this would use historical data and ML models
+      const expectedDrop = currentPrice * 0.15; // Simulate 15% expected drop
+      const timeToWait = 15; // minutes
+      
+      return {
+        expectedPrice: currentPrice - expectedDrop,
+        timeToWait,
+        confidence: 0.85
+      };
+    };
+
     useEffect(() => {
       if (streamData.length > 0) {
         const latestTx = streamData[0];
         
-        // Process optimization suggestions
         if (latestTx.optimization?.suggestions?.length > 0) {
+          const currentGasPrice = latestTx.gasAnalysis.currentGasPrice;
+          
+          // Generate price prediction
+          const prediction = predictGasPrices(currentGasPrice);
+          setPredictionData(prediction);
+          
           const newNotification = {
             id: Date.now(),
             type: 'optimization',
-            message: latestTx.optimization.suggestions[0],
+            message: `Waiting ${prediction.timeToWait} minutes could save up to ${(currentGasPrice - prediction.expectedPrice).toFixed(2)} Gwei`,
             timestamp: new Date().toLocaleTimeString(),
             savings: latestTx.gasAnalysis?.potentialSavings?.eth || 0
           };
   
           setNotifications(prev => [newNotification, ...prev].slice(0, 5));
           
-          // Update current optimization if savings are significant
           if (latestTx.gasAnalysis?.potentialSavings?.eth > 0.001) {
-            const currentGasPrice = latestTx.gasAnalysis.currentGasPrice;
-            
-            setCurrentOptimization({
+            const optimizedSettings = {
               currentGasPrice,
-              recommendedPrice: currentGasPrice - 
-                (latestTx.gasAnalysis.potentialSavings.gwei || 0),
+              recommendedPrice: prediction.expectedPrice,
               potentialSavings: latestTx.gasAnalysis.potentialSavings.eth,
               timestamp: Date.now()
-            });
+            };
+            
+            setCurrentOptimization(optimizedSettings);
+            onOptimizedGasUpdate?.(prediction.expectedPrice);
   
-            // Check if current gas price matches optimized gas price
             if (optimizedGasPrice && 
-                Math.abs(currentGasPrice - (optimizedGasPrice / 1e9)) <= 0.5 && // 0.5 Gwei tolerance
-                Date.now() - lastToastTime > 60000) { // Show toast max once per minute
+                Math.abs(currentGasPrice - (optimizedGasPrice / 1e9)) <= 0.5 &&
+                Date.now() - lastToastTime > 60000) {
               
               toast({
-                title: "Gas Price Match Alert! ⛽",
-                description: `Current network gas price (${(currentGasPrice).toFixed(2)} Gwei) matches your optimized target price (${(optimizedGasPrice / 1e9).toFixed(2)} Gwei). Consider executing your transaction now.`,
+                title: "⏰ Price Drop Predicted!",
+                description: `Consider waiting ${prediction.timeToWait} minutes for lower gas prices. Estimated savings: ${(currentGasPrice - prediction.expectedPrice).toFixed(2)} Gwei`,
                 action: (
-                  <ToastAction onClick={() => console.log('View details clicked')}>
-                    View Details
+                  <ToastAction onClick={() => console.log('Apply optimized settings')}>
+                    Apply Settings
                   </ToastAction>
                 ),
-                duration: 5000,
+                duration: 8000,
                 variant: "default",
-                icon: <Bell className="h-4 w-4" />
+                icon: <Timer className="h-4 w-4" />
               });
               
               setLastToastTime(Date.now());
@@ -63,28 +80,31 @@ const GasOptimizationDashboard = ({ optimizedGasPrice }) => {
           }
         }
       }
-    }, [streamData, optimizedGasPrice, toast, lastToastTime]);
+    }, [streamData, optimizedGasPrice, toast, lastToastTime, onOptimizedGasUpdate]);
 
   const renderOptimizationAlert = () => {
-    if (!currentOptimization) return null;
+    if (!currentOptimization || !predictionData) return null;
     
     const timeAgo = Math.floor((Date.now() - currentOptimization.timestamp) / 1000);
-    if (timeAgo > 300) return null; // Hide after 5 minutes
+    if (timeAgo > 300) return null;
     
     return (
       <Alert className="mb-4 border-green-500 bg-green-50">
         <TrendingDown className="h-4 w-4 text-green-500" />
-        <AlertTitle className="text-green-700">Gas Optimization Available</AlertTitle>
+        <AlertTitle className="text-green-700">Gas Price Prediction Available</AlertTitle>
         <AlertDescription className="text-green-600">
           Current gas price: {currentOptimization.currentGasPrice.toFixed(2)} Gwei
           <br />
-          Recommended price: {currentOptimization.recommendedPrice.toFixed(2)} Gwei
+          Predicted price in {predictionData.timeToWait} mins: {predictionData.expectedPrice.toFixed(2)} Gwei
           <br />
           Potential savings: {currentOptimization.potentialSavings.toFixed(6)} ETH
+          <br />
+          Confidence: {(predictionData.confidence * 100).toFixed(0)}%
         </AlertDescription>
       </Alert>
     );
   };
+
 
   return (
     <Card className="w-full">

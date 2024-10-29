@@ -46,11 +46,15 @@ class QuickNodeService {
         high: 0.5
       }
     };
+
+    // Set up cache
+    this.cachedGasInfo = null;
+    this.cacheExpiration = 10 * 1000; // Cache expiration in milliseconds
+    this.lastFetchTime = 0;
   }
 
   async makeAuthenticatedRequest(method, params = []) {
     try {
-      // Use the JsonRpcProvider for RPC calls instead of direct fetch
       const result = await this.httpProvider.send(method, params);
       return result;
     } catch (error) {
@@ -59,71 +63,51 @@ class QuickNodeService {
     }
   }
 
+  async getMaxPriorityFeePerGas() {
+    const now = Date.now();
+
+    // Check cache first
+    if (this.cachedGasInfo && (now - this.lastFetchTime) < this.cacheExpiration) {
+      return this.cachedGasInfo;
+    }
+
+    for (let i = 0; i < 3; i++) {
+      try {
+        const maxPriorityFeePerGas = await this.makeAuthenticatedRequest('eth_maxPriorityFeePerGas');
+        this.cachedGasInfo = parseInt(maxPriorityFeePerGas, 16) / 1e9;
+        this.lastFetchTime = now;
+        return this.cachedGasInfo;
+      } catch (error) {
+        if (i === 2 || error.code !== -32007) throw error; // Only retry on rate-limit errors
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); // Exponential backoff
+      }
+    }
+  }
+
   async analyzeTransaction(transactionData, network = 'ethereum') {
     try {
-      // Validate transaction data
       if (!transactionData || typeof transactionData !== 'object') {
         throw new Error('Invalid transaction data');
       }
 
-      // Handle different transaction formats
+      // Determine gas price
       let gasPrice;
       try {
-        gasPrice = transactionData.gasPrice || 
-                   transactionData.maxFeePerGas || 
-                   await this.makeAuthenticatedRequest('eth_gasPrice');
+        gasPrice = transactionData.gasPrice || transactionData.maxFeePerGas || await this.makeAuthenticatedRequest('eth_gasPrice');
       } catch (error) {
         console.warn('Failed to get gas price, using default:', error);
         gasPrice = '0x' + (50n * 1000000000n).toString(16); // Default 50 Gwei
       }
-      
-      const gasLimit = transactionData.gasLimit || 
-                      transactionData.gas || 
-                      '0x5208'; // Default to 21000 gas
 
-      // Get current network conditions with retries
-      const getNetworkConditions = async (retries = 3) => {
-        for (let i = 0; i < retries; i++) {
-          try {
-            const block = await this.makeAuthenticatedRequest('eth_getBlockByNumber', ['latest', false]);
-            
-            // For networks that don't support EIP-1559, handle gracefully
-            const baseFeePerGas = block?.baseFeePerGas ? 
-              parseInt(block.baseFeePerGas, 16) / 1e9 : null;
+      const gasLimit = transactionData.gasLimit || transactionData.gas || '0x5208'; // Default to 21000 gas
+      const baseFeePerGas = await this.getBaseFeePerGas(); // Fetch base fee with retries
+      const maxPriorityFeePerGas = await this.getMaxPriorityFeePerGas(); // Fetch priority fee with retries
 
-            // Fallback priority fee calculation if maxPriorityFeePerGas is not supported
-            let maxPriorityFeePerGas;
-            try {
-              maxPriorityFeePerGas = await this.makeAuthenticatedRequest('eth_maxPriorityFeePerGas', []);
-              maxPriorityFeePerGas = parseInt(maxPriorityFeePerGas, 16) / 1e9;
-            } catch (error) {
-              console.warn('maxPriorityFeePerGas not supported, using calculated value');
-              maxPriorityFeePerGas = baseFeePerGas ? 
-                (parseInt(gasPrice, 16) / 1e9 - baseFeePerGas) : 
-                2; // Default 2 Gwei priority fee
-            }
-            
-            return { baseFeePerGas, maxPriorityFeePerGas };
-          } catch (error) {
-            console.warn(`Attempt ${i + 1} failed:`, error);
-            if (i === retries - 1) throw error;
-            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i)));
-          }
-        }
-      };
-
-      const networkConditions = await getNetworkConditions();
-      const gasPriceGwei = typeof gasPrice === 'string' ? 
-        parseInt(gasPrice, 16) / 1e9 : 
-        Number(gasPrice) / 1e9;
-      
-      const gasLimitValue = typeof gasLimit === 'string' ? 
-        parseInt(gasLimit, 16) : 
-        Number(gasLimit);
+      const gasPriceGwei = parseInt(gasPrice, 16) / 1e9;
+      const gasLimitValue = parseInt(gasLimit, 16);
 
       const currentThresholds = this.thresholds[network] || this.thresholds.ethereum;
 
-      // Analysis structure
       const analysis = {
         timestamp: Date.now(),
         network,
@@ -134,8 +118,8 @@ class QuickNodeService {
         },
         gasAnalysis: {
           currentGasPrice: gasPriceGwei,
-          baseFeePerGas: networkConditions.baseFeePerGas,
-          maxPriorityFeePerGas: networkConditions.maxPriorityFeePerGas,
+          baseFeePerGas,
+          maxPriorityFeePerGas,
           priceLevel: gasPriceGwei <= currentThresholds.low ? 'low' :
                      gasPriceGwei <= currentThresholds.medium ? 'medium' : 'high',
           estimatedCost: (gasPriceGwei * gasLimitValue) / 1e9
@@ -143,7 +127,6 @@ class QuickNodeService {
         suggestions: []
       };
 
-      // Generate optimization suggestions
       if (gasPriceGwei > currentThresholds.high) {
         analysis.suggestions.push({
           type: 'delay',
@@ -152,16 +135,10 @@ class QuickNodeService {
         });
       }
 
-      // Check if EIP-1559 optimization is possible
-      if (networkConditions.baseFeePerGas) {
-        const potentialBaseFee = Math.min(
-          networkConditions.baseFeePerGas * 1.125, 
-          networkConditions.baseFeePerGas + 2
-        );
-        const potentialPriorityFee = Math.min(
-          networkConditions.maxPriorityFeePerGas * 0.9, 
-          networkConditions.maxPriorityFeePerGas
-        );
+      // EIP-1559 optimization
+      if (baseFeePerGas) {
+        const potentialBaseFee = Math.min(baseFeePerGas * 1.125, baseFeePerGas + 2);
+        const potentialPriorityFee = Math.min(maxPriorityFeePerGas * 0.9, maxPriorityFeePerGas);
         const potentialTotalFee = potentialBaseFee + potentialPriorityFee;
 
         if (gasPriceGwei > potentialTotalFee) {
@@ -170,8 +147,6 @@ class QuickNodeService {
             message: `Consider using EIP-1559 with base fee of ${potentialBaseFee.toFixed(2)} Gwei and priority fee of ${potentialPriorityFee.toFixed(2)} Gwei`,
             severity: 'medium'
           });
-
-          // Calculate potential savings
           analysis.gasAnalysis.potentialSavings = {
             gwei: gasPriceGwei - potentialTotalFee,
             eth: ((gasPriceGwei - potentialTotalFee) * gasLimitValue) / 1e9
@@ -186,11 +161,22 @@ class QuickNodeService {
     }
   }
 
+  async getBaseFeePerGas() {
+    // Retrieve the base fee with retries if necessary
+    for (let i = 0; i < 3; i++) {
+      try {
+        const block = await this.makeAuthenticatedRequest('eth_getBlockByNumber', ['latest', false]);
+        return block?.baseFeePerGas ? parseInt(block.baseFeePerGas, 16) / 1e9 : null;
+      } catch (error) {
+        if (i === 2) throw error; // Stop retrying after 3 attempts
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); // Exponential backoff
+      }
+    }
+  }
+
   async batchAnalyze(transactions, network = 'ethereum') {
     try {
-      const analysisPromises = transactions.map(tx => 
-        this.analyzeTransaction(tx, network)
-      );
+      const analysisPromises = transactions.map(tx => this.analyzeTransaction(tx, network));
       return await Promise.all(analysisPromises);
     } catch (error) {
       console.error('Batch Analysis Error:', error);
