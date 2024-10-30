@@ -1,98 +1,134 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useEthereum } from '../../context/EthereumContext';
-import { shortenAddress } from '../../utils/helpers';
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { FaEthereum } from "react-icons/fa";
+import { HiOutlineChartBar } from "react-icons/hi";
+import { BiFolderOpen } from "react-icons/bi";
+import { Link, useLocation } from "react-router-dom";
+import { useEthereum } from "../../context/EthereumContext";
+import { shortenAddress } from "../../utils/helpers";
 
 const Navbar = () => {
-  const { 
-    account, 
-    connectWallet, 
-    disconnectWallet, 
-    isConnecting, 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const {
+    account,
+    connectWallet,
+    disconnectWallet,
+    isConnecting,
     error,
-    isInitialized 
+    isInitialized,
   } = useEthereum();
-  
+
   const location = useLocation();
 
   const handleConnect = async () => {
     try {
       await connectWallet();
     } catch (err) {
-      console.error('Error in handleConnect:', err);
+      console.error("Error in handleConnect:", err);
     }
   };
 
   const navLinks = [
-    { path: '/gas', label: 'Gas Analytics' },
-    { path: '/portfolio', label: 'Portfolio' },
+    { path: "/gas", label: "Gas Analytics" },
+    { path: "/portfolio", label: "Portfolio" },
   ];
 
   return (
-    <nav className="bg-gray-800 text-white p-4">
+    <motion.nav
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ type: "spring", stiffness: 100 }}
+      className="fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-md text-white p-4 z-50"
+    >
       <div className="container mx-auto flex justify-between items-center">
-        <div className="flex items-center gap-6">
-          <Link to="/" className="text-xl font-bold">GasSaverX</Link>
+        <motion.div
+          className="flex items-center gap-6"
+          whileHover={{ scale: 1.05 }}
+        >
+          <Link to="/" className="text-xl font-bold flex items-center gap-2">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            >
+              <FaEthereum className="text-2xl text-blue-400" />
+            </motion.div>
+            <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              GasSaverX
+            </span>
+          </Link>
+
           <div className="hidden md:flex items-center gap-4">
             {navLinks.map(({ path, label }) => (
-              <Link
+              <motion.div
                 key={path}
-                to={path}
-                className={`px-3 py-2 rounded-md text-sm font-medium ${
-                  location.pathname === path
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                }`}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
               >
-                {label}
-              </Link>
+                <Link
+                  to={path}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 ${
+                    location.pathname === path
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  }`}
+                >
+                  {label === "Gas Analytics" ? (
+                    <HiOutlineChartBar className="text-lg" />
+                  ) : (
+                    <BiFolderOpen className="text-lg" />
+                  )}
+                  {label}
+                </Link>
+              </motion.div>
             ))}
           </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
+        </motion.div>
+
+        <AnimatePresence>
           {error && (
-            <div className="text-red-400 text-sm">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="text-red-400 text-sm px-4 py-2 bg-red-500/10 rounded-lg"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
-          
+        </AnimatePresence>
+
+        <motion.div
+          className="flex items-center gap-4"
+          whileHover={{ scale: 1.02 }}
+        >
           {account ? (
             <div className="flex items-center gap-2">
-              <div className="bg-gray-700 px-4 py-2 rounded-lg">
+              <span className="text-sm text-gray-300">
                 {shortenAddress(account)}
-              </div>
-              <button
+              </span>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 text-sm bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30"
                 onClick={disconnectWallet}
-                className="text-gray-400 hover:text-white px-2 py-1 rounded-lg text-sm"
               >
                 Disconnect
-              </button>
+              </motion.button>
             </div>
           ) : (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-4 py-2 text-sm bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30"
               onClick={handleConnect}
               disabled={isConnecting || !isInitialized}
-              className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
             >
-              {isConnecting ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                  <span>Connecting...</span>
-                </>
-              ) : !isInitialized ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                  <span>Initializing...</span>
-                </>
-              ) : (
-                'Connect Wallet'
-              )}
-            </button>
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </motion.button>
           )}
-        </div>
+        </motion.div>
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 

@@ -1,11 +1,113 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';
-import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
+import { Alert, AlertDescription } from '../elements/Alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../elements/Tabs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
-import { Plus, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Percent, BarChart2 } from 'lucide-react';
-
+import { Plus, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Percent, BarChart2, Activity, Wallet, Gauge } from 'lucide-react';
+import { Progress, Skeleton, LoadingState } from '../elements/Progress';
 // API integration utilities
 const API_BASE_URL = 'https://api.coinpaprika.com/v1';
+
+const MotionCard = motion(Card);
+
+// Simplified animation variants
+const cardVariants = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0 }
+};
+
+export const ChartCard = ({ title, children }) => (
+  <Card className="overflow-hidden">
+    <CardHeader>
+      <CardTitle>{title}</CardTitle>
+    </CardHeader>
+    <CardContent>
+      {children}
+    </CardContent>
+  </Card>
+);
+
+export const PortfolioMetricCard = ({ title, value, icon: Icon, trend, color = "blue" }) => (
+  <Card className="overflow-hidden">
+    <CardContent className="p-6">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <p className="text-sm text-gray-500">{title}</p>
+          <p className="text-2xl font-bold">{value}</p>
+          {trend && (
+            <p className={`text-sm ${trend >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(2)}%
+            </p>
+          )}
+        </div>
+        <div className={`p-4 rounded-full bg-${color}-100`}>
+          <Icon className={`w-6 h-6 text-${color}-500`} />
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+export const AssetCard = ({ asset }) => (
+  <Card className="overflow-hidden">
+    <CardContent className="p-6">
+      <div className="flex justify-between items-center mb-4">
+        <div className="space-y-1">
+          <h3 className="text-xl font-bold">{asset.symbol}</h3>
+          <p className="text-sm text-gray-500">
+            {asset.amount} × ${asset.currentPrice.toLocaleString(undefined, { 
+              maximumFractionDigits: 2 
+            })}
+          </p>
+        </div>
+        <div 
+          className={`px-3 py-1 rounded-full ${
+            asset.percentChange24h >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+          }`}
+        >
+          {asset.percentChange24h >= 0 ? '+' : ''}{asset.percentChange24h.toFixed(2)}%
+        </div>
+      </div>
+      
+      <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+        <div 
+          className={`h-2 rounded-full ${asset.percentChange24h >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+          style={{ width: `${Math.min(Math.abs(asset.percentChange24h) * 2, 100)}%` }}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <p className="text-sm text-gray-500">24h Volume</p>
+          <p className="font-semibold">${asset.volume24h.toLocaleString()}</p>
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm text-gray-500">Market Cap</p>
+          <p className="font-semibold">${asset.marketCap.toLocaleString()}</p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+;
+
+// const LoadingState = () => (
+//   <div className="space-y-6 p-6">
+//     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+//       {[...Array(3)].map((_, i) => (
+//         <Skeleton key={i} className="h-32" />
+//       ))}
+//     </div>
+//     <Skeleton className="h-64" />
+//     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+//       {[...Array(4)].map((_, i) => (
+//         <Skeleton key={i} className="h-48" />
+//       ))}
+//     </div>
+//   </div>
+// );
 
 
 // Technical Analysis Utilities
@@ -465,108 +567,112 @@ const PortfolioDashboard = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <PortfolioAnalytics assets={assets} />
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {assets.map(asset => (
-          <TechnicalAnalysis key={asset.id} asset={asset} />
-        ))}
-      </div>
-      
-      <GasAnalysis gasData={gasData} priceData={assets[0].priceHistory} />
-      
-      {/* Portfolio Allocation */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Portfolio Allocation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={getPortfolioAllocation()}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
-                >
-                  {getPortfolioAllocation().map((entry, index) => (
-                    <Cell key={index} fill={`hsl(${index * 45}, 70%, 50%)`} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="space-y-6 p-6"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <PortfolioMetricCard
+            title="Total Portfolio Value"
+            value={`$${assets.reduce((sum, asset) => sum + (asset.currentPrice * asset.amount), 0).toLocaleString()}`}
+            icon={Wallet}
+            color="blue"
+          />
+          <PortfolioMetricCard
+            title="24h Change"
+            value={`${assets[0].percentChange24h >= 0 ? '+' : ''}${assets[0].percentChange24h.toFixed(2)}%`}
+            icon={Activity}
+            trend={assets[0].percentChange24h}
+            color="green"
+          />
+          <PortfolioMetricCard
+            title="Gas Price"
+            value={`${gasData[0]?.standard || 'N/A'} Gwei`}
+            icon={Gauge}
+            color="purple"
+          />
+        </div>
 
-      {/* Price Performance */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Price Performance</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={assets[0].priceHistory}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="price" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid grid-cols-3 w-[400px]">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="technical">Technical</TabsTrigger>
+            <TabsTrigger value="assets">Assets</TabsTrigger>
+          </TabsList>
 
-      {/* Asset Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {assets.map(asset => (
-          <Card key={asset.id}>
-            <CardContent className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h3 className="font-semibold">{asset.symbol}</h3>
-                  <p className="text-sm text-gray-600">
-                    {asset.amount} × ${asset.currentPrice.toLocaleString(undefined, { 
-                      maximumFractionDigits: 2 
-                    })}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">
-                    ${(asset.currentPrice * asset.amount).toLocaleString()}
-                  </p>
-                  <p className={`text-sm ${
-                    asset.percentChange24h >= 0 ? 'text-green-500' : 'text-red-500'
-                  }`}>
-                    {asset.percentChange24h >= 0 ? '↑' : '↓'} {
-                      Math.abs(asset.percentChange24h).toFixed(2)
-                    }%
-                  </p>
-                </div>
+          <TabsContent value="overview" className="space-y-6">
+            <ChartCard title="Portfolio Performance">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={assets[0].priceHistory}>
+                    <defs>
+                      <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Area 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke="#8884d8" 
+                      fillOpacity={1} 
+                      fill="url(#colorPrice)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-gray-500">24h Volume</p>
-                  <p className="font-medium">${asset.volume24h.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Market Cap</p>
-                  <p className="font-medium">${asset.marketCap.toLocaleString()}</p>
-                </div>
+            </ChartCard>
+
+            <ChartCard title="Portfolio Allocation">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={getPortfolioAllocation()}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, value }) => `${name} ${value.toFixed(1)}%`}
+                    >
+                      {getPortfolioAllocation().map((entry, index) => (
+                        <Cell key={index} fill={`hsl(${index * 45}, 70%, 50%)`} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+            </ChartCard>
+          </TabsContent>
+
+          <TabsContent value="technical" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {assets.map(asset => (
+                <TechnicalAnalysis key={asset.id} asset={asset} />
+              ))}
+            </div>
+            <GasAnalysis gasData={gasData} priceData={assets[0].priceHistory} />
+          </TabsContent>
+
+          <TabsContent value="assets" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {assets.map(asset => (
+                <AssetCard key={asset.id} asset={asset} />
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowDownCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
-
+import { motion } from 'framer-motion'
 import RealTimeAnalysis from '../gas/RealTimeAnalysis';
 
 const OptimizeGas = () => {
@@ -211,108 +211,159 @@ const OptimizeGas = () => {
   };
 
   return (
-    
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Gas & Route Optimization</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <RealTimeAnalysis />
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold mb-2">Network Status</h3>
-          <div className="text-sm space-y-1">
-            <p>Chain ID: {currentChainId || 'Not detected'}</p>
-            {networkDetails && <p>Network: {networkDetails.name}</p>}
-          </div>
-        </div>
-
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {commonTokens.length > 0 && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Output Token
-            </label>
-            <select
-              className="w-full p-2 border rounded-md"
-              value={selectedOutputToken?.address || ''}
-              onChange={(e) => {
-                const token = commonTokens.find(t => t.address === e.target.value);
-                setSelectedOutputToken(token);
-              }}
-            >
-              {commonTokens.map(token => (
-                <option key={token.address} value={token.address}>
-                  {token.symbol} - {token.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="space-y-6">
-          {loading ? (
-            <div className="flex justify-center items-center h-40">
-              <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center space-y-4">
-              <div className="w-full p-4 bg-gray-50 rounded-lg">
-                <p className="text-gray-600">Current Gas Price</p>
-                <p className="text-2xl font-bold">
-                  {formatGwei(currentGasPrice)}
-                </p>
-              </div>
-
-              <ArrowDownCircle className="text-blue-500 h-8 w-8" />
-
-              <div className="w-full p-4 bg-gray-50 rounded-lg">
-                <p className="text-gray-600">Optimized Gas Price</p>
-                <p className="text-2xl font-bold">
-                  {formatGwei(optimizedPrice)}
-                </p>
-              </div>
-
-              {savings > 0 && (
-                <div className="w-full p-4 bg-green-50 rounded-lg">
-                  <p className="text-gray-600">Potential Savings</p>
-                  <p className="text-2xl font-bold text-green-500">
-                    {formatGwei(savings)}
-                  </p>
-                </div>
-              )}
-
-              {quoteDetails && (
-                <div className="w-full p-4 bg-blue-50 rounded-lg">
-                  <h4 className="font-semibold mb-2">Quote Details</h4>
-                  <div className="text-sm space-y-1">
-                    <p>Gas Estimate: {quoteDetails.gasEstimate.toLocaleString()} units</p>
-                    <p>Output Amount: {(quoteDetails.outputAmount / Math.pow(10, selectedOutputToken?.decimals || 6)).toFixed(6)} {selectedOutputToken?.symbol}</p>
-                    <p>Path ID: {quoteDetails.pathId}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
-            onClick={fetchOptimizedQuote}
-            disabled={loading || !selectedOutputToken}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card className="w-full max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>Gas & Route Optimization</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RealTimeAnalysis />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mb-4 p-4 bg-gray-50 rounded-lg"
           >
-            {loading ? 'Optimizing...' : 'Optimize Gas'}
-          </button>
-        </div>
-      </CardContent>
-    </Card>
+            <h3 className="font-semibold mb-2">Network Status</h3>
+            <div className="text-sm space-y-1">
+              <p>Chain ID: {currentChainId || 'Not detected'}</p>
+              {networkDetails && <p>Network: {networkDetails.name}</p>}
+            </div>
+          </motion.div>
+
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </motion.div>
+          )}
+
+          {commonTokens.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mb-4"
+            >
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Output Token
+              </label>
+              <select
+                className="w-full p-2 border rounded-md"
+                value={selectedOutputToken?.address || ''}
+                onChange={(e) => {
+                  const token = commonTokens.find(t => t.address === e.target.value);
+                  setSelectedOutputToken(token);
+                }}
+              >
+                {commonTokens.map(token => (
+                  <option key={token.address} value={token.address}>
+                    {token.symbol} - {token.name}
+                  </option>
+                ))}
+              </select>
+            </motion.div>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+            {loading ? (
+              <div className="flex justify-center items-center h-40">
+                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="w-full p-4 bg-gray-50 rounded-lg"
+                >
+                  <p className="text-gray-600">Current Gas Price</p>
+                  <p className="text-2xl font-bold">
+                    {formatGwei(currentGasPrice)}
+                  </p>
+                </motion.div>
+
+                <ArrowDownCircle className="text-blue-500 h-8 w-8" />
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="w-full p-4 bg-gray-50 rounded-lg"
+                >
+                  <p className="text-gray-600">Optimized Gas Price</p>
+                  <p className="text-2xl font-bold">
+                    {formatGwei(optimizedPrice)}
+                  </p>
+                </motion.div>
+
+                {savings > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-full p-4 bg-green-50 rounded-lg"
+                  >
+                    <p className="text-gray-600">Potential Savings</p>
+                    <p className="text-2xl font-bold text-green-500">
+                      {formatGwei(savings)}
+                    </p>
+                  </motion.div>
+                )}
+
+                {quoteDetails && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="w-full p-4 bg-blue-50 rounded-lg"
+                  >
+                    <h4 className="font-semibold mb-2">Quote Details</h4>
+                    <div className="text-sm space-y-1">
+                      <p>Gas Estimate: {quoteDetails.gasEstimate.toLocaleString()} units</p>
+                      <p>Output Amount: {(quoteDetails.outputAmount / Math.pow(10, selectedOutputToken?.decimals || 6)).toFixed(6)} {selectedOutputToken?.symbol}</p>
+                      <p>Path ID: {quoteDetails.pathId}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="mt-6 flex justify-end"
+          >
+            <button
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              onClick={fetchOptimizedQuote}
+              disabled={loading || !selectedOutputToken}
+            >
+              {loading ? 'Optimizing...' : 'Optimize Gas'}
+            </button>
+          </motion.div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 };
 
