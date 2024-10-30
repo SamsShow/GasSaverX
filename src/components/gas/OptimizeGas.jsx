@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowDownCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
-import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';
+import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
+
 import RealTimeAnalysis from '../gas/RealTimeAnalysis';
 
 const OptimizeGas = () => {

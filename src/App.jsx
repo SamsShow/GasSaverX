@@ -13,6 +13,7 @@ import PortfolioDashboard from "./components/layout/PortfolioDasboard";
 import GasOptimizationDashboard from "./components/gas/GasOptimizationDashboard ";
 import TransactionForm from "./components/transaction/TransactionForm";
 import TransactionHistory from "./components/transaction/TransactionHistory";
+import LandingPage from './components/Landing';
 
 // Create separate components for each main view
 const GasAnalytics = ({ optimizedGasPrice, setOptimizedGasPrice }) => (
@@ -117,7 +118,7 @@ const App = () => {
             <Layout>
               <div className="container mx-auto px-4 py-8">
                 <Routes>
-                  <Route path="/" element={<Navigate to="/gas" replace />} />
+                  <Route path="/" element={<LandingPage />} />
                   <Route 
                     path="/gas" 
                     element={
