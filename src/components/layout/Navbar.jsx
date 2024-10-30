@@ -1,8 +1,9 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useEthereum } from '../../context/EthereumContext';
 import { shortenAddress } from '../../utils/helpers';
 
-export default function Navbar() {
+const Navbar = () => {
   const { 
     account, 
     connectWallet, 
@@ -11,6 +12,8 @@ export default function Navbar() {
     error,
     isInitialized 
   } = useEthereum();
+  
+  const location = useLocation();
 
   const handleConnect = async () => {
     try {
@@ -20,10 +23,32 @@ export default function Navbar() {
     }
   };
 
+  const navLinks = [
+    { path: '/gas', label: 'Gas Analytics' },
+    { path: '/portfolio', label: 'Portfolio' },
+  ];
+
   return (
     <nav className="bg-gray-800 text-white p-4">
       <div className="container mx-auto flex justify-between items-center">
-        <div className="text-xl font-bold">GasSaverX</div>
+        <div className="flex items-center gap-6">
+          <Link to="/" className="text-xl font-bold">GasSaverX</Link>
+          <div className="hidden md:flex items-center gap-4">
+            {navLinks.map(({ path, label }) => (
+              <Link
+                key={path}
+                to={path}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  location.pathname === path
+                    ? 'bg-gray-900 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
         
         <div className="flex items-center gap-4">
           {error && (
@@ -69,4 +94,6 @@ export default function Navbar() {
       </div>
     </nav>
   );
-}
+};
+
+export default Navbar;

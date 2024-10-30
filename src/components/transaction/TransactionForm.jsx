@@ -1,8 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { ethers } from "ethers";
 import { useEthereum } from "../../context/EthereumContext";
-import { AlertCircle, Loader, Check, Timer } from "lucide-react";
+import { AlertCircle, Loader, Check, Timer, Coins } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "../elements/Alert";
+
+// Complete ERC20 ABI interface
+const ERC20_ABI = [
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"name": "", "type": "uint8"}],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [{"name": "owner", "type": "address"}],
+    "name": "balanceOf",
+    "outputs": [{"name": "", "type": "uint256"}],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": false,
+    "inputs": [
+      {"name": "to", "type": "address"},
+      {"name": "value", "type": "uint256"}
+    ],
+    "name": "transfer",
+    "outputs": [{"name": "", "type": "bool"}],
+    "payable": false,
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
+
+// PYUSD Mainnet Contract Address
+const PYUSD_ADDRESS = "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8";
 
 const TransactionForm = ({ optimizedGasPrice }) => {
   const [formData, setFormData] = useState({
@@ -15,6 +52,7 @@ const TransactionForm = ({ optimizedGasPrice }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [gasEstimate, setGasEstimate] = useState(null);
+  const [pyusdBalance, setPyusdBalance] = useState("0");
   const [customGasSettings, setCustomGasSettings] = useState({
     maxFeePerGas: null,
     maxPriorityFeePerGas: null,
@@ -23,57 +61,138 @@ const TransactionForm = ({ optimizedGasPrice }) => {
   const { account, provider, signer, connectWallet } = useEthereum();
   const isConnected = Boolean(account);
 
-  // Update gas settings when optimized price is received
-  useEffect(() => {
-    if (optimizedGasPrice) {
+    // Initialize PYUSD contract with signer instead of provider
+    const pyusdContract = React.useMemo(() => {
+      if (!provider || !PYUSD_ADDRESS) return null;
       try {
-        // Round to 9 decimal places and remove any excess trailing zeros
-        const roundedGasPrice = Number(parseFloat(optimizedGasPrice).toFixed(9));
-        
-        // Convert the rounded number to a string with fixed precision
-        const gweiString = roundedGasPrice.toString();
-        
-        try {
-          const weiValue = ethers.parseUnits(gweiString, "gwei");
-          setCustomGasSettings({
-            maxFeePerGas: weiValue,
-            maxPriorityFeePerGas: ethers.parseUnits("1.5", "gwei"),
-          });
-        } catch (parseError) {
-          console.warn("Failed to parse gas price, falling back to default:", parseError);
-          // Fallback to a safe default if parsing fails
-          setCustomGasSettings({
-            maxFeePerGas: ethers.parseUnits("50", "gwei"),
-            maxPriorityFeePerGas: ethers.parseUnits("1.5", "gwei"),
-          });
-        }
+        return new ethers.Contract(PYUSD_ADDRESS, ERC20_ABI, provider);
       } catch (err) {
-        console.error("Error setting gas price:", err);
-        setError("Invalid gas price received");
+        console.error("Error initializing PYUSD contract:", err);
+        return null;
+      }
+    }, [provider]);
+
+    useEffect(() => {
+      const fetchPyusdBalance = async () => {
+        if (!pyusdContract || !account) {
+          setPyusdBalance("0");
+          return;
+        }
+    
+        try {
+          // Ensure contract responds as expected with a sample call to decimals
+          let decimals;
+          try {
+            decimals = await pyusdContract.decimals();
+          } catch (err) {
+            console.error("Error fetching decimals:", err);
+            decimals = 6; // Set default decimals if call fails
+          }
+    
+          // Check if balanceOf is callable
+          const balance = await pyusdContract.balanceOf(account);
+          
+          // Format balance if callable, otherwise handle error
+          const formattedBalance = ethers.formatUnits(balance, decimals);
+          setPyusdBalance(formattedBalance);
+        } catch (err) {
+          console.error("Error fetching PYUSD balance:", err);
+          setPyusdBalance("Error");
+        }
+      };
+    
+      if (isConnected) {
+        fetchPyusdBalance();
+      } else {
+        setPyusdBalance("0");
+      }
+    }, [pyusdContract, account, isConnected]);
+    
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isConnected) {
+      try {
+        await connectWallet();
+      } catch (err) {
+        setError("Please connect your wallet first");
+        return;
       }
     }
-  }, [optimizedGasPrice]);
 
-  // Format gas price safely for display
-  const formatGasPrice = (price) => {
+    setLoading(true);
+    setError("");
+
     try {
-      if (!price) return "0";
-      
-      // Handle BigNumber or BigInt
-      if (typeof price === 'bigint' || price._isBigNumber) {
-        const formatted = ethers.formatUnits(price, "gwei");
-        return Number(formatted).toFixed(2);
+      validateTransaction(formData.recipient, formData.amount);
+
+      let transaction;
+      if (formData.paymentMethod === "PYUSD") {
+        if (!pyusdContract) {
+          throw new Error("PYUSD contract not initialized");
+        }
+
+        // Get the signer version of the contract for transactions
+        const pyusdWithSigner = pyusdContract.connect(signer);
+        
+        // Get decimals
+        const decimals = await pyusdContract.decimals();
+        
+        // Parse amount with proper decimals
+        const amount = ethers.parseUnits(formData.amount.toString(), decimals);
+
+        // Prepare transaction
+        transaction = await pyusdWithSigner.transfer.populateTransaction(
+          formData.recipient,
+          amount
+        );
+      } else {
+        transaction = {
+          to: formData.recipient,
+          value: ethers.parseEther(formData.amount.toString()),
+        };
+
+        if (formData.data) {
+          transaction.data = formData.data.startsWith("0x")
+            ? formData.data
+            : `0x${formData.data}`;
+        }
       }
-      
-      // Handle decimal number
-      return Number(price).toFixed(2);
+
+      if (formData.useOptimizedGas && customGasSettings.maxFeePerGas) {
+        transaction.maxFeePerGas = customGasSettings.maxFeePerGas;
+        transaction.maxPriorityFeePerGas = customGasSettings.maxPriorityFeePerGas;
+        transaction.type = 2;
+      }
+
+      // Estimate gas
+      try {
+        const estimate = await provider.estimateGas(transaction);
+        setGasEstimate(estimate);
+      } catch (gasErr) {
+        throw new Error("Failed to estimate gas. The transaction may fail.");
+      }
+
+      const tx = await signer.sendTransaction(transaction);
+      await tx.wait();
+
+      setFormData({
+        recipient: "",
+        amount: "",
+        data: "",
+        paymentMethod: formData.paymentMethod,
+        useOptimizedGas: false,
+      });
     } catch (err) {
-      console.error("Error formatting gas price:", err);
-      return "0";
+      console.error("Transaction error:", err);
+      setError(err.message || "Transaction failed");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Rest of the component remains the same
+
+  // Include all the helper functions from the previous version...
   const validateTransaction = (recipient, amount) => {
     if (!recipient || !amount) {
       throw new Error("Please fill in all required fields");
@@ -104,6 +223,15 @@ const TransactionForm = ({ optimizedGasPrice }) => {
     setError("");
   };
 
+  const handlePaymentMethodChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      paymentMethod: e.target.value,
+      data: "",
+    }));
+    setError("");
+  };
+
   const handleGasSettingToggle = () => {
     setFormData((prev) => ({
       ...prev,
@@ -111,67 +239,17 @@ const TransactionForm = ({ optimizedGasPrice }) => {
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!isConnected) {
-      try {
-        await connectWallet();
-      } catch (err) {
-        setError("Please connect your wallet first");
-        return;
-      }
-    }
-
-    if (!signer || !provider) {
-      setError("Wallet connection not initialized properly");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
+  const formatGasPrice = (price) => {
     try {
-      validateTransaction(formData.recipient, formData.amount);
-
-      const transaction = {
-        to: formData.recipient,
-        value: ethers.parseEther(formData.amount.toString()),
-      };
-
-      if (formData.data) {
-        transaction.data = formData.data.startsWith("0x")
-          ? formData.data
-          : `0x${formData.data}`;
+      if (!price) return "0";
+      if (typeof price === 'bigint' || price._isBigNumber) {
+        const formatted = ethers.formatUnits(price, "gwei");
+        return Number(formatted).toFixed(2);
       }
-
-      if (formData.useOptimizedGas && customGasSettings.maxFeePerGas) {
-        transaction.maxFeePerGas = customGasSettings.maxFeePerGas;
-        transaction.maxPriorityFeePerGas = customGasSettings.maxPriorityFeePerGas;
-        transaction.type = 2;
-      }
-
-      try {
-        const estimate = await provider.estimateGas(transaction);
-        setGasEstimate(estimate);
-      } catch (gasErr) {
-        throw new Error("Failed to estimate gas. The transaction may fail.");
-      }
-
-      const tx = await signer.sendTransaction(transaction);
-      await tx.wait();
-
-      setFormData({
-        recipient: "",
-        amount: "",
-        data: "",
-        paymentMethod: "ETH",
-        useOptimizedGas: false,
-      });
+      return Number(price).toFixed(2);
     } catch (err) {
-      console.error("Transaction error:", err);
-      setError(err.message || "Transaction failed");
-    } finally {
-      setLoading(false);
+      console.error("Error formatting gas price:", err);
+      return "0";
     }
   };
 
@@ -203,6 +281,7 @@ const TransactionForm = ({ optimizedGasPrice }) => {
     return null;
   };
 
+  // Return the JSX...
   return (
     <div className="w-full max-w-lg mx-auto p-6 bg-white rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6">New Transaction</h2>
@@ -210,6 +289,25 @@ const TransactionForm = ({ optimizedGasPrice }) => {
       {renderConnectionStatus()}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center space-x-4 mb-4">
+          <select
+            name="paymentMethod"
+            value={formData.paymentMethod}
+            onChange={handlePaymentMethodChange}
+            className="p-2 border rounded focus:ring-2 focus:ring-blue-500"
+            disabled={!isConnected}
+          >
+            <option value="ETH">ETH</option>
+            <option value="PYUSD">PYUSD</option>
+          </select>
+          
+          {formData.paymentMethod === "PYUSD" && (
+            <div className="text-sm text-gray-600">
+              Balance: {pyusdBalance === "Error" ? "Error loading balance" : `${Number(pyusdBalance).toFixed(2)} PYUSD`}
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">
             Recipient Address
@@ -227,7 +325,9 @@ const TransactionForm = ({ optimizedGasPrice }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Amount</label>
+          <label className="block text-sm font-medium mb-1">
+            Amount ({formData.paymentMethod})
+          </label>
           <input
             type="number"
             name="amount"
@@ -235,27 +335,29 @@ const TransactionForm = ({ optimizedGasPrice }) => {
             onChange={handleInputChange}
             className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
             placeholder="0.0"
-            step="0.000000000000000001"
+            step="0.000001"
             min="0"
             disabled={!isConnected}
             required
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Data (Optional)
-          </label>
-          <textarea
-            name="data"
-            value={formData.data}
-            onChange={handleInputChange}
-            className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
-            placeholder="0x..."
-            rows="3"
-            disabled={!isConnected}
-          />
-        </div>
+        {formData.paymentMethod === "ETH" && (
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Data (Optional)
+            </label>
+            <textarea
+              name="data"
+              value={formData.data}
+              onChange={handleInputChange}
+              className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500"
+              placeholder="0x..."
+              rows="3"
+              disabled={!isConnected}
+            />
+          </div>
+        )}
 
         {optimizedGasPrice && (
           <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-md">
