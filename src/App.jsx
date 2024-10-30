@@ -4,7 +4,7 @@ import { ToastContainer } from "react-toastify";
 import { ToastProvider } from "./components/elements/ToastAction";
 import "react-toastify/dist/ReactToastify.css";
 import { EthereumProvider } from "./context/EthereumContext";
-import Layout from "./components/layout/layout";
+import Layout from "./components/layout/Layout";
 import Navbar from "./components/layout/Navbar";
 import GasMetrics from "./components/gas/GasMetrics";
 import OptimizeGas from "./components/gas/OptimizeGas";
