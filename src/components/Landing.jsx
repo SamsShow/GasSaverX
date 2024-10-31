@@ -129,7 +129,7 @@ const LandingPage = () => {
         viewport={{ once: true }}
       >
         <div className="flex flex-col items-center py-16 bg-[#F2F9FF]">
-          <h2 className="text-2xl font-semibold mb-4 text-[#4B6E91]">Our Partners</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-[#4B6E91]">Supported Networks</h2>
           <p className="text-[#7B95B4] mb-10">Leading the Way in Blockchain Technology</p>
           <motion.div 
             className="flex justify-center gap-8 flex-wrap"
@@ -137,12 +137,12 @@ const LandingPage = () => {
             whileInView={{ opacity: 1 }}
             transition={{ staggerChildren: 0.2 }}
           >
-            {["/path/to/ethereum-logo.png", "/path/to/polygon-logo.png", "/path/to/arbitrum-logo.png", 
-              "/path/to/optimism-logo.png", "/path/to/chainlink-logo.png"].map((src, index) => (
+            {["src/assets/Ethereum_logo_2014.svg.png", "src/assets/Bitcoin.svg.png", "src/assets/polygon-matic-logo.png", 
+              "src/assets/binance-smart-chain.com", "src/assets/arbitrum-arb-logo.png"].map((src, index) => (
               <motion.img
                 key={index}
                 src={src}
-                alt="Partner"
+                alt="networks"
                 className="w-16 h-16 hover:scale-110 transition-transform duration-300"
                 initial={{ scale: 0 }}
                 whileInView={{ scale: 1 }}
@@ -183,6 +183,11 @@ const LandingPage = () => {
               icon={<FaEthereum className="text-[#00D1B2]" />}
               title="PYUSD Support"
               description="Pay for gas fees using PYUSD (PayPal USD) as an alternative to Ether."
+            />
+            <FeatureCard
+              icon={<BsGraphUp className="text-[#00D1B2]" />}
+              title="Portfolio Dasviard"
+              description="Monitor your assets and track your portfolio performance with real-time data through Coinpaprika."
             />
             <FeatureCard
               icon={<BsGraphUp className="text-[#00D1B2]" />}
