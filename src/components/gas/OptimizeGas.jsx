@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowDownCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../elements/Card';import { Alert, AlertDescription, AlertTitle } from '../elements/Alert';
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowDownCircle, AlertCircle, RefreshCw, Activity, Server, Wallet, TrendingUp } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import RealTimeAnalysis from '../gas/RealTimeAnalysis';
 
 const OptimizeGas = () => {
@@ -16,6 +17,38 @@ const OptimizeGas = () => {
   const [currentChainId, setCurrentChainId] = useState(null);
   const [lastQuoteTimestamp, setLastQuoteTimestamp] = useState(null);
   const [quoteDetails, setQuoteDetails] = useState(null);
+  const [gasPriceHistory, setGasPriceHistory] = useState([]);
+
+  useEffect(() => {
+    if (currentGasPrice) {
+      setGasPriceHistory(prev => [...prev, {
+        time: new Date().toLocaleTimeString(),
+        price: Number(currentGasPrice) / 1e9
+      }].slice(-10));
+    }
+  }, [currentGasPrice]);
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100
+      }
+    }
+  };
 
   useEffect(() => {
     const initializeNetwork = async () => {
@@ -212,55 +245,83 @@ const OptimizeGas = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-6"
     >
-      <Card className="w-full max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle>Gas & Route Optimization</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RealTimeAnalysis />
+      <motion.div 
+        className="max-w-4xl mx-auto bg-white rounded-md shadow-xl overflow-hidden"
+        variants={itemVariants}
+      >
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-6 text-white">
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Activity className="h-8 w-8" />
+            Gas & Route Optimization
+          </h1>
+          <p className="mt-2 opacity-90">Optimize your transaction costs and routing efficiency</p>
+        </div>
+
+        <div className="p-6">
+          {/* Real-Time Analysis Section */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mb-4 p-4 bg-gray-50 rounded-lg"
+            variants={itemVariants}
+            className="mb-6 bg-white rounded-xl shadow-md p-4 border border-gray-100"
           >
-            <h3 className="font-semibold mb-2">Network Status</h3>
-            <div className="text-sm space-y-1">
-              <p>Chain ID: {currentChainId || 'Not detected'}</p>
-              {networkDetails && <p>Network: {networkDetails.name}</p>}
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-blue-500" />
+              Real-Time Analysis
+            </h3>
+            <RealTimeAnalysis />
+          </motion.div>
+
+          {/* Network Status Card */}
+          <motion.div
+            variants={itemVariants}
+            className="bg-white rounded-xl shadow-md p-4 mb-6 border border-gray-100"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <Server className="h-5 w-5 text-blue-500" />
+              <h3 className="font-semibold text-lg">Network Status</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-500">Chain ID</p>
+                <p className="font-semibold">{currentChainId || 'Not detected'}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-500">Network</p>
+                <p className="font-semibold">{networkDetails?.name || 'Unknown'}</p>
+              </div>
             </div>
           </motion.div>
 
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            </motion.div>
-          )}
+          {/* Error Alert */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  <p className="text-red-700">{error}</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* Token Selection */}
           {commonTokens.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="mb-4"
-            >
+            <motion.div variants={itemVariants} className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Output Token
+                Select Output Token
               </label>
               <select
-                className="w-full p-2 border rounded-md"
+                className="w-full p-3 border border-gray-200 rounded-lg bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 value={selectedOutputToken?.address || ''}
                 onChange={(e) => {
                   const token = commonTokens.find(t => t.address === e.target.value);
@@ -276,70 +337,98 @@ const OptimizeGas = () => {
             </motion.div>
           )}
 
+          {/* Gas Price Chart */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-6"
+            variants={itemVariants}
+            className="mb-6 bg-white rounded-xl shadow-md p-4 border border-gray-100"
           >
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-500" />
+              Gas Price History
+            </h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={gasPriceHistory}>
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="price"
+                    stroke="#4F46E5"
+                    strokeWidth={2}
+                    dot={{ fill: '#4F46E5' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+
+          {/* Main Content */}
+          <motion.div variants={itemVariants} className="space-y-6">
             {loading ? (
               <div className="flex justify-center items-center h-40">
-                <RefreshCw className="h-8 w-8 animate-spin text-blue-500" />
+                <RefreshCw className="h-10 w-10 animate-spin text-blue-500" />
               </div>
             ) : (
-              <div className="flex flex-col items-center space-y-4">
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Current Gas Price */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className="w-full p-4 bg-gray-50 rounded-lg"
+                  variants={itemVariants}
+                  className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl shadow-md"
                 >
-                  <p className="text-gray-600">Current Gas Price</p>
-                  <p className="text-2xl font-bold">
+                  <p className="text-blue-700 font-medium mb-2">Current Gas Price</p>
+                  <p className="text-3xl font-bold text-blue-900">
                     {formatGwei(currentGasPrice)}
                   </p>
                 </motion.div>
 
-                <ArrowDownCircle className="text-blue-500 h-8 w-8" />
-
+                {/* Optimized Gas Price */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                  className="w-full p-4 bg-gray-50 rounded-lg"
+                  variants={itemVariants}
+                  className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl shadow-md"
                 >
-                  <p className="text-gray-600">Optimized Gas Price</p>
-                  <p className="text-2xl font-bold">
+                  <p className="text-purple-700 font-medium mb-2">Optimized Gas Price</p>
+                  <p className="text-3xl font-bold text-purple-900">
                     {formatGwei(optimizedPrice)}
                   </p>
                 </motion.div>
 
+                {/* Savings Display */}
                 {savings > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className="w-full p-4 bg-green-50 rounded-lg"
+                    variants={itemVariants}
+                    className="md:col-span-2 bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl shadow-md"
                   >
-                    <p className="text-gray-600">Potential Savings</p>
-                    <p className="text-2xl font-bold text-green-500">
+                    <p className="text-green-700 font-medium mb-2">Potential Savings</p>
+                    <p className="text-3xl font-bold text-green-900">
                       {formatGwei(savings)}
                     </p>
                   </motion.div>
                 )}
 
+                {/* Quote Details */}
                 {quoteDetails && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className="w-full p-4 bg-blue-50 rounded-lg"
+                    variants={itemVariants}
+                    className="md:col-span-2 bg-white border border-gray-200 p-6 rounded-xl shadow-md"
                   >
-                    <h4 className="font-semibold mb-2">Quote Details</h4>
-                    <div className="text-sm space-y-1">
-                      <p>Gas Estimate: {quoteDetails.gasEstimate.toLocaleString()} units</p>
-                      <p>Output Amount: {(quoteDetails.outputAmount / Math.pow(10, selectedOutputToken?.decimals || 6)).toFixed(6)} {selectedOutputToken?.symbol}</p>
-                      <p>Path ID: {quoteDetails.pathId}</p>
+                    <h4 className="text-lg font-semibold mb-4">Transaction Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-500">Gas Estimate</p>
+                        <p className="font-semibold">{quoteDetails.gasEstimate.toLocaleString()} units</p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-500">Output Amount</p>
+                        <p className="font-semibold">
+                          {(quoteDetails.outputAmount / Math.pow(10, selectedOutputToken?.decimals || 6)).toFixed(6)} {selectedOutputToken?.symbol}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-500">Path ID</p>
+                        <p className="font-semibold truncate">{quoteDetails.pathId}</p>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -347,22 +436,37 @@ const OptimizeGas = () => {
             )}
           </motion.div>
 
+          {/* Action Button */}
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="mt-6 flex justify-end"
+            variants={itemVariants}
+            className="mt-8 flex justify-center"
           >
             <button
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:opacity-50"
+              className={`
+                px-6 py-3 rounded-xl font-medium text-white
+                transform transition-all duration-200
+                ${loading || !selectedOutputToken
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:scale-105 hover:shadow-lg active:scale-95'}
+              `}
               onClick={fetchOptimizedQuote}
               disabled={loading || !selectedOutputToken}
             >
-              {loading ? 'Optimizing...' : 'Optimize Gas'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 animate-spin" />
+                  Optimizing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5" />
+                  Optimize Gas
+                </span>
+              )}
             </button>
           </motion.div>
-        </CardContent>
-      </Card>
+        </div>
+      </motion.div>
     </motion.div>
   );
 };

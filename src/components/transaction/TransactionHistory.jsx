@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// TransactionHistory.jsx
+import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { ethers } from 'ethers';
 
@@ -13,81 +14,25 @@ const formatTimestamp = (timestamp) => {
 
 const formatEther = (value) => {
   if (!value) return '0';
-  return parseFloat(ethers.formatEther(value)).toFixed(4);
+  try {
+    return parseFloat(ethers.formatEther(value)).toFixed(4);
+  } catch (error) {
+    console.error('Error formatting ether value:', error);
+    return '0';
+  }
 };
 
-const TransactionHistory = ({ provider, userAddress }) => {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!provider || !userAddress) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        // Get the latest block number
-        const currentBlock = await provider.getBlockNumber();
-        const txs = [];
-
-        // Fetch last 10 blocks (adjust number as needed)
-        for (let i = 0; i < 10; i++) {
-          const block = await provider.getBlock(currentBlock - i, true);
-          if (!block || !block.transactions) continue;
-
-          // Filter transactions involving the user's address
-          const relevantTxs = block.transactions.filter(tx => 
-            tx.from?.toLowerCase() === userAddress.toLowerCase() ||
-            tx.to?.toLowerCase() === userAddress.toLowerCase()
-          );
-
-          // Get details for each relevant transaction
-          for (const tx of relevantTxs) {
-            const receipt = await provider.getTransactionReceipt(tx.hash);
-            
-            txs.push({
-              hash: tx.hash,
-              from: tx.from,
-              to: tx.to,
-              value: tx.value.toString(),
-              status: receipt?.status === 1 ? 'success' : receipt?.status === 0 ? 'failed' : 'pending',
-              timestamp: block.timestamp
-            });
-          }
-        }
-
-        setTransactions(txs);
-      } catch (error) {
-        console.error('Error fetching transactions:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTransactions();
-  }, [provider, userAddress]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
+const TransactionHistory = ({ transactions = [], className = '' }) => {
   if (!transactions || transactions.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        No transactions found
+      <div className="text-center py-8 text-gray-500 rounded-lg border border-gray-200 bg-gray-50">
+        No transactions found. Make a transaction to see it appear here.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto rounded-lg border border-gray-200 ${className}`}>
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
@@ -127,7 +72,7 @@ const TransactionHistory = ({ provider, userAddress }) => {
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex flex-col">
+                <div className="flex flex-col space-y-1">
                   <span className="text-sm text-gray-900">
                     From: {formatAddress(tx.from)}
                   </span>

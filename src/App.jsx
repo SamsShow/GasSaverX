@@ -82,12 +82,7 @@ const GasAnalytics = ({ optimizedGasPrice, setOptimizedGasPrice }) => {
               }}
             >
               <CardContent>
-                <Typography variant="h4" gutterBottom sx={{ color: theme.palette.primary.main }}>
-                  Gas Price Analytics
-                </Typography>
-                <Box sx={{ mb: 3 }}>
                   <GasMetrics />
-                </Box>
                 <PriceFeeds />
               </CardContent>
             </Card>
@@ -101,12 +96,8 @@ const GasAnalytics = ({ optimizedGasPrice, setOptimizedGasPrice }) => {
                 borderRadius: 2
               }}
             >
-              <CardContent>
-                <Typography variant="h4" gutterBottom sx={{ color: theme.palette.primary.main }}>
-                  Gas Optimization
-                </Typography>
+
                 <OptimizeGas />
-              </CardContent>
             </Card>
           </motion.div>
         </Grid>
@@ -122,9 +113,6 @@ const GasAnalytics = ({ optimizedGasPrice, setOptimizedGasPrice }) => {
               }}
             >
               <CardContent>
-                <Typography variant="h4" gutterBottom sx={{ color: theme.palette.primary.main }}>
-                  Gas Optimization Dashboard
-                </Typography>
                 <GasOptimizationDashboard
                   optimizedGasPrice={optimizedGasPrice}
                   onOptimizedGasUpdate={setOptimizedGasPrice}
