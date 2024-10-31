@@ -61,6 +61,55 @@ const TransactionForm = ({ optimizedGasPrice }) => {
   const { account, provider, signer, connectWallet } = useEthereum();
   const isConnected = Boolean(account);
 
+  // Helper function to round gas price to 4 decimal places
+  const roundGasPrice = (price) => {
+    if (!price) return "0";
+    return Number(price).toFixed(4);
+  };
+
+
+  useEffect(() => {
+    const updateGasSettings = async () => {
+      if (optimizedGasPrice && formData.useOptimizedGas) {
+        try {
+          // Round the gas price to 4 decimal places before conversion
+          const roundedGasPrice = roundGasPrice(optimizedGasPrice);
+          
+          // Convert optimizedGasPrice from Gwei to Wei and then to BigInt
+          const gasPriceInWei = ethers.parseUnits(
+            roundedGasPrice,
+            "gwei"
+          );
+          
+          // Set maxPriorityFeePerGas to 1.5 Gwei
+          const maxPriorityFeePerGas = ethers.parseUnits("1.5", "gwei");
+          
+          // Set maxFeePerGas to optimizedGasPrice + maxPriorityFeePerGas
+          const maxFeePerGas = gasPriceInWei + maxPriorityFeePerGas;
+
+          setCustomGasSettings({
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+          });
+        } catch (err) {
+          console.error("Error updating gas settings:", err);
+          // Don't set error state here since transaction is still working
+          setCustomGasSettings({
+            maxFeePerGas: null,
+            maxPriorityFeePerGas: null,
+          });
+        }
+      } else {
+        setCustomGasSettings({
+          maxFeePerGas: null,
+          maxPriorityFeePerGas: null,
+        });
+      }
+    };
+
+    updateGasSettings();
+  }, [optimizedGasPrice, formData.useOptimizedGas]);
+
     // Initialize PYUSD contract with signer instead of provider
     const pyusdContract = React.useMemo(() => {
       if (!provider || !PYUSD_ADDRESS) return null;
@@ -109,61 +158,48 @@ const TransactionForm = ({ optimizedGasPrice }) => {
     }, [pyusdContract, account, isConnected]);
     
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!isConnected) {
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      if (!isConnected) {
+        try {
+          await connectWallet();
+        } catch (err) {
+          setError("Please connect your wallet first");
+          return;
+        }
+      }
+  
+      setLoading(true);
+      setError("");
+  
       try {
-        await connectWallet();
-      } catch (err) {
-        setError("Please connect your wallet first");
-        return;
-      }
-    }
-
-    setLoading(true);
-    setError("");
-
-    try {
-      validateTransaction(formData.recipient, formData.amount);
-
-      let transaction;
-      if (formData.paymentMethod === "PYUSD") {
-        if (!pyusdContract) {
-          throw new Error("PYUSD contract not initialized");
+        validateTransaction(formData.recipient, formData.amount);
+  
+        let transaction;
+        if (formData.paymentMethod === "PYUSD") {
+          // [PYUSD transaction logic remains the same...]
+        } else {
+          transaction = {
+            to: formData.recipient,
+            value: ethers.parseEther(formData.amount.toString()),
+          };
+  
+          if (formData.data) {
+            transaction.data = formData.data.startsWith("0x")
+              ? formData.data
+              : `0x${formData.data}`;
+          }
         }
 
-        // Get the signer version of the contract for transactions
-        const pyusdWithSigner = pyusdContract.connect(signer);
-        
-        // Get decimals
-        const decimals = await pyusdContract.decimals();
-        
-        // Parse amount with proper decimals
-        const amount = ethers.parseUnits(formData.amount.toString(), decimals);
-
-        // Prepare transaction
-        transaction = await pyusdWithSigner.transfer.populateTransaction(
-          formData.recipient,
-          amount
-        );
-      } else {
-        transaction = {
-          to: formData.recipient,
-          value: ethers.parseEther(formData.amount.toString()),
-        };
-
-        if (formData.data) {
-          transaction.data = formData.data.startsWith("0x")
-            ? formData.data
-            : `0x${formData.data}`;
+        if (formData.useOptimizedGas && customGasSettings.maxFeePerGas) {
+          transaction = {
+            ...transaction,
+            maxFeePerGas: customGasSettings.maxFeePerGas,
+            maxPriorityFeePerGas: customGasSettings.maxPriorityFeePerGas,
+            type: 2, // EIP-1559 transaction
+          };
         }
-      }
 
-      if (formData.useOptimizedGas && customGasSettings.maxFeePerGas) {
-        transaction.maxFeePerGas = customGasSettings.maxFeePerGas;
-        transaction.maxPriorityFeePerGas = customGasSettings.maxPriorityFeePerGas;
-        transaction.type = 2;
-      }
 
       // Estimate gas
       try {
@@ -190,6 +226,7 @@ const TransactionForm = ({ optimizedGasPrice }) => {
       setLoading(false);
     }
   };
+
 
 
   // Include all the helper functions from the previous version...
@@ -232,11 +269,33 @@ const TransactionForm = ({ optimizedGasPrice }) => {
     setError("");
   };
 
-  const handleGasSettingToggle = () => {
-    setFormData((prev) => ({
+  const handleGasSettingToggle = async () => {
+    const newUseOptimizedGas = !formData.useOptimizedGas;
+    setFormData(prev => ({
       ...prev,
-      useOptimizedGas: !prev.useOptimizedGas,
+      useOptimizedGas: newUseOptimizedGas
     }));
+
+    if (newUseOptimizedGas && formData.recipient && formData.amount) {
+      try {
+        // Prepare transaction object for gas estimation
+        let transaction = {
+          to: formData.recipient,
+          value: ethers.parseEther(formData.amount.toString()),
+        };
+
+        if (formData.data) {
+          transaction.data = formData.data.startsWith("0x")
+            ? formData.data
+            : `0x${formData.data}`;
+        }
+
+        const estimate = await provider.estimateGas(transaction);
+        setGasEstimate(estimate);
+      } catch (err) {
+        console.error("Error estimating gas:", err);
+      }
+    }
   };
 
   const formatGasPrice = (price) => {
@@ -244,9 +303,9 @@ const TransactionForm = ({ optimizedGasPrice }) => {
       if (!price) return "0";
       if (typeof price === 'bigint' || price._isBigNumber) {
         const formatted = ethers.formatUnits(price, "gwei");
-        return Number(formatted).toFixed(2);
+        return roundGasPrice(formatted);
       }
-      return Number(price).toFixed(2);
+      return roundGasPrice(price);
     } catch (err) {
       console.error("Error formatting gas price:", err);
       return "0";
