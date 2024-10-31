@@ -6,6 +6,7 @@ import { BiFolderOpen } from "react-icons/bi";
 import { Link, useLocation } from "react-router-dom";
 import { useEthereum } from "../../context/EthereumContext";
 import { shortenAddress } from "../../utils/helpers";
+import logo from "../../assets/logo.svg";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -46,13 +47,8 @@ const Navbar = () => {
           whileHover={{ scale: 1.05 }}
         >
           <Link to="/" className="text-xl font-bold flex items-center gap-2">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-            >
-              <FaEthereum className="text-2xl text-blue-400" />
-            </motion.div>
-            <span className="bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+            <img src={logo} alt="logo" className="h-8 w-8" />
+            <span className="bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">
               GasSaverX
             </span>
           </Link>
