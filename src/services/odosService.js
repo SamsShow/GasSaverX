@@ -7,18 +7,18 @@ export class OdosService {
 
   async getQuote(params) {
     try {
-      // Validate required parameters
+      
       if (!params.chainId || !params.inputTokens || !params.outputTokens) {
         throw new Error('Missing required parameters: chainId, inputTokens, or outputTokens');
       }
 
-      // Ensure amounts are strings
+      
       params.inputTokens = params.inputTokens.map(token => ({
         ...token,
         amount: token.amount.toString()
       }));
 
-      // Format request body according to Odos API specs
+      
       const requestBody = {
         chainId: Number(params.chainId),
         inputTokens: params.inputTokens,
@@ -26,7 +26,7 @@ export class OdosService {
         userAddr: params.userAddr,
         slippageLimitPercent: params.slippageLimitPercent,
         gasPrice: params.gasPrice ? params.gasPrice.toString() : undefined,
-        referralCode: "YourReferralCode", // Optional: Add your Odos referral code
+        referralCode: "YourReferralCode",
         pathViz: true
       };
 
@@ -80,7 +80,7 @@ export class OdosService {
     }
   }
 
-  // Get contract addresses for common tokens on a specific chain
+  
   async getChainTokens(chainId) {
     try {
       console.log(`Fetching tokens for chain ${chainId} from ${this.baseUrl}/tokens/${chainId}`);
@@ -104,13 +104,13 @@ export class OdosService {
       const data = await response.json();
       console.log('Token data received:', data);
 
-      // Validate and format the response
+      
       if (!Array.isArray(data)) {
         console.error('Invalid token data format:', data);
         throw new Error('Invalid token data format received from API');
       }
 
-      // Filter out invalid tokens and ensure required properties
+      
       return data
         .filter(token => token && token.address && token.symbol)
         .map(token => ({

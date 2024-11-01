@@ -93,7 +93,7 @@ const StyledChip = styled(Chip)(({ theme }) => ({
   },
 }));
 
-// PYUSD Mainnet Contract Address
+
 const PYUSD_ADDRESS = "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8";
 
 const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
@@ -119,7 +119,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
   const isConnected = Boolean(account);
 
   
-  // Helper function to round gas price to 4 decimal places
+  // to round gas price to 4 decimal places
   const roundGasPrice = (price) => {
     if (!price) return "0";
     return Number(price).toFixed(4);
@@ -158,7 +158,6 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
           // Set maxPriorityFeePerGas to 1.5 Gwei
           const maxPriorityFeePerGas = ethers.parseUnits("1.5", "gwei");
 
-          // Set maxFeePerGas to optimizedGasPrice + maxPriorityFeePerGas
           const maxFeePerGas = gasPriceInWei + maxPriorityFeePerGas;
 
           setCustomGasSettings({
@@ -167,7 +166,6 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
           });
         } catch (err) {
           console.error("Error updating gas settings:", err);
-          // Don't set error state here since transaction is still working
           setCustomGasSettings({
             maxFeePerGas: null,
             maxPriorityFeePerGas: null,
@@ -184,7 +182,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
     updateGasSettings();
   }, [optimizedGasPrice, formData.useOptimizedGas]);
 
-  // Initialize PYUSD contract with signer instead of provider
+  // Initialize PYUSD contract
   const pyusdContract = React.useMemo(() => {
     if (!provider || !PYUSD_ADDRESS) return null;
     try {
@@ -203,7 +201,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
       }
 
       try {
-        // Ensure contract responds as expected with a sample call to decimals
+        
         let decimals;
         try {
           decimals = await pyusdContract.decimals();
@@ -212,10 +210,10 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
           decimals = 6; // Set default decimals if call fails
         }
 
-        // Check if balanceOf is callable
+       
         const balance = await pyusdContract.balanceOf(account);
 
-        // Format balance if callable, otherwise handle error
+
         const formattedBalance = ethers.formatUnits(balance, decimals);
         setPyusdBalance(formattedBalance);
       } catch (err) {
@@ -250,7 +248,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
 
       let transaction;
       if (formData.paymentMethod === "PYUSD") {
-        // [PYUSD transaction logic remains the same...]
+        
       } else {
         transaction = {
           to: formData.recipient,
@@ -305,7 +303,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
     }
   };
 
-  // Include all the helper functions from the previous version...
+
   const validateTransaction = (recipient, amount) => {
     if (!recipient || !amount) {
       throw new Error("Please fill in all required fields");
@@ -354,7 +352,7 @@ const TransactionForm = ({ optimizedGasPrice, onTransactionSubmit }) => {
 
     if (newUseOptimizedGas && formData.recipient && formData.amount) {
       try {
-        // Prepare transaction object for gas estimation
+      
         let transaction = {
           to: formData.recipient,
           value: ethers.parseEther(formData.amount.toString()),

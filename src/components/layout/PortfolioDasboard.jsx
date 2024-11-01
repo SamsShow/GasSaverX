@@ -6,12 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../elements/Tabs';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { Plus, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Percent, BarChart2, Activity, Wallet, Gauge } from 'lucide-react';
 import { Progress, Skeleton, LoadingState } from '../elements/Progress';
-// API integration utilities
+
 const API_BASE_URL = 'https://api.coinpaprika.com/v1';
 
 const MotionCard = motion(Card);
 
-// Simplified animation variants
+
 const cardVariants = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },

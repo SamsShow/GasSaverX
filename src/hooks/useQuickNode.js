@@ -16,9 +16,9 @@ export function useQuickNode() {
       provider.on('pending', async (txHash) => {
         try {
           const tx = await provider.getTransaction(txHash);
-          if (!tx) return; // Skip if transaction not found
+          if (!tx) return;
 
-          // Create a normalized transaction object
+          
           const txData = {
             hash: tx.hash,
             from: tx.from,
@@ -34,7 +34,7 @@ export function useQuickNode() {
           try {
             const analysis = await quickNodeService.analyzeTransaction(txData);
             
-            // Format the transaction data with analysis results
+            
             const formattedTx = {
               ...txData,
               optimization: {
@@ -49,7 +49,7 @@ export function useQuickNode() {
             });
           } catch (analysisError) {
             console.warn('Transaction analysis failed:', analysisError);
-            // Still add the transaction to stream data even if analysis fails
+            
             setStreamData((prevData) => {
               const updatedData = [txData, ...prevData].slice(0, 100);
               return updatedData;

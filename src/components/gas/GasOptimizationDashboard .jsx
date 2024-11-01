@@ -15,7 +15,7 @@ const GasOptimizationDashboard = ({ optimizedGasPrice, onOptimizedGasUpdate }) =
   
     // Simulate gas price prediction based on historical data
     const predictGasPrices = (currentPrice) => {
-      // In a real implementation, this would use historical data and ML models
+      
       const expectedDrop = currentPrice * 0.15; // Simulate 15% expected drop
       const timeToWait = 15; // minutes
       

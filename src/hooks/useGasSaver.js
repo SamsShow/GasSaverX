@@ -11,7 +11,7 @@ export const useGasSaver = (signer, provider) => {
   const [estimatedCost, setEstimatedCost] = useState(null);
   const [optimizedGasPrice, setOptimizedGasPrice] = useState(null);
   const [error, setError] = useState(null);
-  // Initialize contract instance
+  
   const getContract = useCallback(() => {
     if (!signer) return null;
     return new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
@@ -36,21 +36,21 @@ export const useGasSaver = (signer, provider) => {
     }
   };
 
-  // Estimate gas cost
+  
   const estimateGasCost = async (to, data, value) => {
     const contract = getContract();
     if (!contract) return;
 
     setIsLoading(true);
     try {
-      // Estimate gas limit
+      
       const gasLimit = await provider.estimateGas({
         to,
         data,
         value: parseEther(value || '0')
       });
 
-      // Get optimized gas price and cost estimate
+      
       const [optimizedPrice, costEstimate] = await contract.optimizeGasUsage(
         to,
         data,
@@ -74,7 +74,7 @@ export const useGasSaver = (signer, provider) => {
     }
   };
 
-  // Execute optimized transaction
+  
   const executeTransaction = async (to, data, value) => {
     const contract = getContract();
     if (!contract) {
@@ -96,7 +96,7 @@ export const useGasSaver = (signer, provider) => {
       toast.info('Transaction submitted. Waiting for confirmation...');
       await tx.wait();
       
-      // Update gas metrics after transaction
+      
       const newMetrics = await getGasStatistics();
       setGasMetrics(newMetrics);
 
@@ -111,7 +111,7 @@ export const useGasSaver = (signer, provider) => {
     }
   };
 
-  // Get PYUSD cost estimate
+  
   const getPyusdCostEstimate = async (gasLimit) => {
     const contract = getContract();
     if (!contract) return;
@@ -125,7 +125,7 @@ export const useGasSaver = (signer, provider) => {
     }
   };
 
-  // Update price data
+ 
   const updatePriceData = async () => {
     const contract = getContract();
     if (!contract) return;
@@ -143,7 +143,7 @@ export const useGasSaver = (signer, provider) => {
 
   const getTransactionHistory = useCallback(async () => {
     try {
-      // Mock implementation - replace with actual blockchain interaction
+      
       return [
         {
           hash: '0x1234...5678',
@@ -154,7 +154,7 @@ export const useGasSaver = (signer, provider) => {
           status: 'success',
           timestamp: Date.now()
         }
-        // Add more mock transactions as needed
+        
       ];
     } catch (err) {
       setError(err);

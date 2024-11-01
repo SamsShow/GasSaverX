@@ -7,19 +7,18 @@ class QuickNodeService {
       throw new Error('QuickNode API key is not configured');
     }
 
-    // Use the WSS endpoint base URL to derive the HTTP endpoint
-    // Convert WSS URL to HTTPS for RPC calls
+    
     const wssUrl = import.meta.env.VITE_QUICKNODE_WSS_ENDPOINT;
     const httpUrl = wssUrl.replace('wss://', 'https://');
 
-    // Store connection configuration
+   
     this.config = {
       url: httpUrl,
       apiKey,
       wsUrl: wssUrl
     };
 
-    // Create providers with authentication headers
+    
     this.wsProvider = new ethers.WebSocketProvider(this.config.wsUrl, undefined, {
       headers: { 'x-api-key': apiKey }
     });
@@ -28,7 +27,7 @@ class QuickNodeService {
       headers: { 'x-api-key': apiKey }
     });
     
-    // Network-specific gas thresholds (in Gwei)
+    
     this.thresholds = {
       ethereum: {
         low: 20,
@@ -47,9 +46,9 @@ class QuickNodeService {
       }
     };
 
-    // Set up cache
+    
     this.cachedGasInfo = null;
-    this.cacheExpiration = 10 * 1000; // Cache expiration in milliseconds
+    this.cacheExpiration = 10 * 1000;
     this.lastFetchTime = 0;
   }
 
@@ -66,7 +65,7 @@ class QuickNodeService {
   async getMaxPriorityFeePerGas() {
     const now = Date.now();
 
-    // Check cache first
+    
     if (this.cachedGasInfo && (now - this.lastFetchTime) < this.cacheExpiration) {
       return this.cachedGasInfo;
     }
@@ -78,8 +77,8 @@ class QuickNodeService {
         this.lastFetchTime = now;
         return this.cachedGasInfo;
       } catch (error) {
-        if (i === 2 || error.code !== -32007) throw error; // Only retry on rate-limit errors
-        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); // Exponential backoff
+        if (i === 2 || error.code !== -32007) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); 
       }
     }
   }
@@ -90,7 +89,7 @@ class QuickNodeService {
         throw new Error('Invalid transaction data');
       }
 
-      // Determine gas price
+      
       let gasPrice;
       try {
         gasPrice = transactionData.gasPrice || transactionData.maxFeePerGas || await this.makeAuthenticatedRequest('eth_gasPrice');
@@ -100,8 +99,8 @@ class QuickNodeService {
       }
 
       const gasLimit = transactionData.gasLimit || transactionData.gas || '0x5208'; // Default to 21000 gas
-      const baseFeePerGas = await this.getBaseFeePerGas(); // Fetch base fee with retries
-      const maxPriorityFeePerGas = await this.getMaxPriorityFeePerGas(); // Fetch priority fee with retries
+      const baseFeePerGas = await this.getBaseFeePerGas(); 
+      const maxPriorityFeePerGas = await this.getMaxPriorityFeePerGas(); 
 
       const gasPriceGwei = parseInt(gasPrice, 16) / 1e9;
       const gasLimitValue = parseInt(gasLimit, 16);
@@ -162,7 +161,7 @@ class QuickNodeService {
   }
 
   async getBaseFeePerGas() {
-    // Retrieve the base fee with retries if necessary
+    
     for (let i = 0; i < 3; i++) {
       try {
         const block = await this.makeAuthenticatedRequest('eth_getBlockByNumber', ['latest', false]);

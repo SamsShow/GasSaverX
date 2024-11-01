@@ -37,26 +37,26 @@ const PriceFeeds = () => {
       
       let maxPriorityFee = 0;
       try {
-        // Try to get max priority fee, but don't fail if it's not available
+        
         maxPriorityFee = Number(feeData.maxPriorityFeePerGas) / 1e9;
       } catch (priorityFeeError) {
         console.warn('Max priority fee not available:', priorityFeeError);
-        // Estimate priority fee as 10% of current gas price if not available
+        
         maxPriorityFee = currentGasPrice * 0.1;
       }
 
-      // Get block information for more stats
+      
       const block = await provider.getBlock('latest');
       let baseGasPrice = currentGasPrice;
       
       try {
-        // Try to get base fee, but don't fail if it's not available
+        
         if (block && block.baseFeePerGas) {
           baseGasPrice = Number(block.baseFeePerGas) / 1e9;
         }
       } catch (baseFeeError) {
         console.warn('Base fee not available:', baseFeeError);
-        // Estimate base fee as 90% of current gas price if not available
+        
         baseGasPrice = currentGasPrice * 0.9;
       }
 
@@ -74,7 +74,7 @@ const PriceFeeds = () => {
         const newData = [...prev, {
           timestamp: new Date().toLocaleTimeString(),
           price: formattedStats.totalPrice
-        }].slice(-24); // Keep last 24 data points
+        }].slice(-24); // last 24 data points
         return newData;
       });
       

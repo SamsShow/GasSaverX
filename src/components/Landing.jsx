@@ -186,7 +186,7 @@ const LandingPage = () => {
             />
             <FeatureCard
               icon={<BsGraphUp className="text-[#00D1B2]" />}
-              title="Portfolio Dasviard"
+              title="Portfolio Dashboard"
               description="Monitor your assets and track your portfolio performance with real-time data through Coinpaprika."
             />
             <FeatureCard

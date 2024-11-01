@@ -7,7 +7,7 @@ class RateLimitedQuickNodeClient {
     this.processing = false;
     this.requestsThisSecond = 0;
     this.lastRequestTime = Date.now();
-    this.MAX_REQUESTS_PER_SECOND = 120; // Setting slightly below limit for safety
+    this.MAX_REQUESTS_PER_SECOND = 120;
     this.providers = {
       ws: new ethers.WebSocketProvider(config.wsUrl, undefined, {
         headers: { 'x-api-key': config.apiKey }
@@ -50,7 +50,7 @@ class RateLimitedQuickNodeClient {
         this.lastRequestTime = now;
       }
 
-      // If we've hit the rate limit, wait until next second
+      
       if (this.requestsThisSecond >= this.MAX_REQUESTS_PER_SECOND) {
         await new Promise(resolve => 
           setTimeout(resolve, 1000 - (now - this.lastRequestTime))
@@ -69,7 +69,7 @@ class RateLimitedQuickNodeClient {
         request.resolve(result);
       } catch (error) {
         if (error.message.includes('request limit reached')) {
-          // If we hit rate limit, put request back in queue
+          
           this.requestQueue.unshift(request);
           await new Promise(resolve => setTimeout(resolve, 1000));
           continue;
@@ -111,7 +111,7 @@ class RateLimitedQuickNodeClient {
     return results;
   }
 
-  // WebSocket subscription management
+  
   subscribeToNewBlocks(callback) {
     return this.providers.ws.on('block', callback);
   }

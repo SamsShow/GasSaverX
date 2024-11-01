@@ -27,7 +27,7 @@ const TransactionManager = () => {
           console.error("Error getting accounts:", err);
         }
 
-        // Listen for account changes
+       
         window.ethereum.on('accountsChanged', (accounts) => {
           if (accounts.length > 0) {
             setAccount(accounts[0]);
@@ -79,7 +79,7 @@ const TransactionManager = () => {
     setTransactions(prev => [newTx, ...prev]);
 
     try {
-      // Wait for transaction confirmation
+     
       const receipt = await provider.waitForTransaction(transaction.hash);
       
       // Update transaction status
